@@ -66,13 +66,78 @@
             <a class="nav-a"  href="/pages/challenges/weekly_challanges.html"><i data-lucide="star"></i><span>Weekly challanges</span></a>
         </div>
     </header>
-    <div class="content-container">
-        <img 
-            src="https://media.giphy.com/media/v1.Y2lkPWVjZjA1ZTQ3andlYm9yM2l4bGNlYTk3c2FxeWZyMnFwMGk5ZWkzeHptbGRvemlnMCZlcD12MV9zdGlja2Vyc19zZWFyY2gmY3Q9cw/OJGAVZubDhC2KyHljK/giphy.gif" 
-            alt="Coming Soon Mascot" 
-            class="gif-video"
-        >
-        <h2 style="color: #1f2937; text-align: center; margin-top: 20px;">Coming in the future</h2>
+
+    <div class="arcade-section" data-parallax data-parallax-speed="0.7">
+        <div class="arcade-header">
+            <h2><span>EDU</span>VENTURE <span style="color: #fbbf24;">Arcade</span></h2>
+            <p>Master your skills through interactive gameplay.</p>
+        </div>
+
+        <div class="arcade-grid">
+
+            <div class="arcade-card" onclick="openLocalGame('spinthewheel.html')">
+                <div class="arcade-thumb">
+                    <img src="https://images.unsplash.com/photo-1518133835878-5a93cc3f89e5?auto=format&fit=crop&q=80&w=600" alt="Spin Wheel">
+                    <div class="play-overlay"><i data-lucide="play-circle" size="64"></i></div>
+                </div>
+                <div class="arcade-info">
+                    <span class="category-badge" style="color: #c2410c; background: #ffedd5;">Tool</span>
+                    <h3>Spin the Wheel</h3>
+                    <p>Randomize your study topics or vocabulary words.</p>
+                </div>
+            </div>
+
+            <div class="arcade-card" onclick="openGame('https://www.gamestolearnenglish.com/animal-mystery/embed.html', 'animal-mystery')">
+                <div class="arcade-thumb">
+                    <img src="https://avatars.mds.yandex.net/i?id=fa4653ca2334afae40cecff3012726c645a8f24f-4969143-images-thumbs&n=13" alt="Animal-mystery">
+                    <div class="play-overlay"><i data-lucide="play-circle" size="64"></i></div>
+                </div>
+                <div class="arcade-info">
+                    <span class="category-badge" style="color: #92400e; background: #fef3c7;">Puzzle</span>
+                    <h3>Animal-mystery</h3>
+                    <p>Find hidden vocabulary words to improve recall.</p>
+                </div>
+            </div>
+
+            <div class="arcade-card" onclick="openGame('https://www.gamestolearnenglish.com/hangman/embed.html', 'Hangman')">
+                <div class="arcade-thumb">
+                    <img src="https://avatars.mds.yandex.net/i?id=3267c07e874cf06e95787f956ac51e698058c5d7-5163701-images-thumbs&n=13" alt="Hangman">
+                    <div class="play-overlay"><i data-lucide="play-circle" size="64"></i></div>
+                </div>
+                <div class="arcade-info">
+                    <span class="category-badge" style="color: #0f766e; background: #ccfbf1;">Classic</span>
+                    <h3>Hangman</h3>
+                    <p>Guess the word before you run out of tries.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="game-modal-overlay" id="gameModal" aria-hidden="true">
+        <div class="game-play-container modal-version">
+            <div class="game-play-header">
+                <h2><span>EDU</span>VENTURE <span style="color: white; font-weight: 500;" id="gameTitleSpan">| Game</span></h2>
+                <div class="modal-controls">
+                    <button class="quote-btn" onclick="toggleFullScreen()">
+                        <i data-lucide="maximize" size="18"></i>
+                        Fullscreen
+                    </button>
+                    <button class="quote-btn" style="background: #ef4444; border-color: #ef4444; color: white;" onclick="closeGame()">
+                        <i data-lucide="x" size="18"></i>
+                        Close
+                    </button>
+                </div>
+            </div>
+
+            <div class="game-iframe-wrapper">
+                <iframe
+                    id="gameFrame"
+                    src=""
+                    sandbox="allow-scripts allow-same-origin"
+                    allowfullscreen>
+                </iframe>
+            </div>
+        </div>
     </div>
     <footer>
     <div class="footer-container">
@@ -127,10 +192,60 @@
         <p style="text-align: center; font-size: small;">© 2026 Eduventure Learning. All rights reserved.</p>
     </div>
 </footer>
+
+    <script>
+        function openGame(url, title) {
+            const modal = document.getElementById('gameModal');
+            const frame = document.getElementById('gameFrame');
+            const titleSpan = document.getElementById('gameTitleSpan');
+
+            frame.src = url;
+            titleSpan.textContent = `| ${title}`;
+            modal.classList.add('active');
+            modal.setAttribute('aria-hidden', 'false');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function openLocalGame(path) {
+            // Local HTML games should be opened as a normal page (not inside an iframe modal),
+            // to avoid iframe sandbox / fullscreen / sizing issues.
+            window.location.href = path;
+        }
+
+        function closeGame() {
+            const modal = document.getElementById('gameModal');
+            const frame = document.getElementById('gameFrame');
+
+            modal.classList.remove('active');
+            modal.setAttribute('aria-hidden', 'true');
+            document.body.style.overflow = '';
+
+            frame.src = '';
+        }
+
+        function toggleFullScreen() {
+            const wrapper = document.querySelector('.game-iframe-wrapper');
+            if (!wrapper) return;
+
+            if (document.fullscreenElement) {
+                document.exitFullscreen().catch(() => {});
+                return;
+            }
+
+            wrapper.requestFullscreen?.().catch(() => {});
+        }
+
+        document.getElementById('gameModal')?.addEventListener('click', (e) => {
+            if (e.target && e.target.id === 'gameModal') closeGame();
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeGame();
+        });
+    </script>
+
     <script src="/elements/UI.js"></script>
     <script src="/pages/elements/script.js"></script>
-    </script>
 <script src="/sw.js"></script>
 </body>
 </html>
-

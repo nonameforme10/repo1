@@ -339,6 +339,109 @@
   (document.head || document.documentElement).appendChild(s);
 })();
 
+(() => {
+  "use strict";
+
+  if (window.__EDUVENTURE_PARALLAX__) return;
+  window.__EDUVENTURE_PARALLAX__ = true;
+
+  const reduceMotion =
+    !!globalThis.matchMedia &&
+    globalThis.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (reduceMotion) return;
+
+  const DEFAULT_SPEED = 0.35;
+  const MAX_OFFSET_PX = 90;
+
+  const keywordToPercent = (value) => {
+    const v = String(value || "").trim().toLowerCase();
+    if (v === "top") return "0%";
+    if (v === "center") return "50%";
+    if (v === "bottom") return "100%";
+    if (v === "left") return "0%";
+    if (v === "right") return "100%";
+    return v || "50%";
+  };
+
+  const clamp = (n, min, max) => Math.min(max, Math.max(min, n));
+
+  function getParallaxElements() {
+    return Array.from(document.querySelectorAll("[data-parallax]"));
+  }
+
+  function ensureBasePosition(el) {
+    if (el.dataset.parallaxBaseX && el.dataset.parallaxBaseY) return;
+
+    const cs = getComputedStyle(el);
+    el.dataset.parallaxBaseX = keywordToPercent(cs.backgroundPositionX);
+    el.dataset.parallaxBaseY = keywordToPercent(cs.backgroundPositionY);
+  }
+
+  function computeOffset(el, viewportH) {
+    const rect = el.getBoundingClientRect();
+    const centerDelta = rect.top + rect.height / 2 - viewportH / 2;
+    const progress = centerDelta / viewportH;
+
+    const rawSpeed = parseFloat(el.dataset.parallaxSpeed || "");
+    const speed = Number.isFinite(rawSpeed) ? rawSpeed : DEFAULT_SPEED;
+
+    const offset = -progress * clamp(speed, -2, 2) * MAX_OFFSET_PX;
+    return clamp(offset, -MAX_OFFSET_PX, MAX_OFFSET_PX);
+  }
+
+  function applyParallax(els) {
+    const viewportH = Math.max(1, window.innerHeight || document.documentElement.clientHeight || 1);
+    for (const el of els) {
+      ensureBasePosition(el);
+      const offset = computeOffset(el, viewportH);
+
+      const cs = getComputedStyle(el);
+      const hasBg = cs.backgroundImage && cs.backgroundImage !== "none";
+
+      if (hasBg) {
+        const baseX = el.dataset.parallaxBaseX || "50%";
+        const baseY = el.dataset.parallaxBaseY || "50%";
+        el.style.backgroundPosition = `${baseX} calc(${baseY} + ${Math.round(offset)}px)`;
+        el.style.willChange = "background-position";
+      } else if ("translate" in el.style) {
+        el.style.translate = `0px ${Math.round(offset)}px`;
+        el.style.willChange = "transform";
+      }
+    }
+  }
+
+  function init() {
+    let els = getParallaxElements();
+    if (els.length === 0) return;
+
+    let raf = 0;
+    const schedule = () => {
+      if (raf) return;
+      raf = window.requestAnimationFrame(() => {
+        raf = 0;
+        els = getParallaxElements();
+        applyParallax(els);
+      });
+    };
+
+    window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", schedule, { passive: true });
+
+    schedule();
+
+    window.EDUVENTURE_PARALLAX = {
+      refresh: schedule,
+      count: () => getParallaxElements().length,
+    };
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+})();
+
 (function initEduventureFocusTrap() {
   "use strict";
 

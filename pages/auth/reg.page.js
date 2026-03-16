@@ -19,9 +19,7 @@ import {
   runTransaction,
 } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
 
-/* -----------------------
-   Helpers
------------------------ */
+
 function todayISO() {
   const d = new Date();
   const pad = (n) => String(n).padStart(2, "0");
@@ -50,7 +48,7 @@ function isValidPhone(phoneNorm) {
   return digits.length >= 7 && digits.length <= 15;
 }
 
-// If it has no letters and has enough digits → treat as phone input
+
 function looksLikePhone(raw) {
   const s = String(raw || "").trim();
   if (!s) return false;
@@ -61,11 +59,11 @@ function looksLikePhone(raw) {
 
 function phoneToUsernameLower(phoneNorm) {
   const digits = phoneKey(phoneNorm);
-  // Keep within username rules; starts with a letter to avoid edge cases.
+  
   return `p${digits}`;
 }
 
-// letters, numbers, dot, underscore
+
 function isValidUsername(u) {
   return /^[a-z0-9._]{3,20}$/.test(u);
 }
@@ -80,9 +78,7 @@ function buildFullName(first, last) {
   return [f, l].filter(Boolean).join(" ").trim();
 }
 
-/* -----------------------
-   DOM
------------------------ */
+
 const titleEl = document.getElementById("form-title");
 const descEl = document.getElementById("form-desc");
 
@@ -116,9 +112,7 @@ const form = document.querySelector(".registration-form");
 
 document.documentElement.style.cursor = "progress";
 
-/* -----------------------
-   Toast
------------------------ */
+
 const Toast = (() => {
   const id = "toast-container-reg";
   const ensure = () => {
@@ -162,9 +156,7 @@ const Toast = (() => {
   return { show };
 })();
 
-/* -----------------------
-   Firebase / RTDB helpers
------------------------ */
+
 function studentBaseRef(uid) {
   return ref(rtdb, `students/${uid}`);
 }
@@ -176,23 +168,23 @@ function phoneIndexRef(phoneKeyDigits) {
   return ref(rtdb, `phones/${phoneKeyDigits}`);
 }
 
-// ✅ idempotent: if already claimed by same uid, keep it
+
 async function claimPhoneOrThrow(phoneKeyDigits, uid) {
   const res = await runTransaction(phoneIndexRef(phoneKeyDigits), (current) => {
-    if (current == null) return uid;     // claim new
-    if (current === uid) return current; // already ours
-    return;                               // abort (taken)
+    if (current == null) return uid;     
+    if (current === uid) return current; 
+    return;                               
   });
 
   if (!res.committed) throw new Error("phone_taken");
 }
 
-// ✅ idempotent: if already claimed by same uid, keep it
+
 async function claimUsernameOrThrow(usernameLower, uid) {
   const res = await runTransaction(usernameRef(usernameLower), (current) => {
-    if (current == null) return uid;     // claim new
-    if (current === uid) return current; // already ours
-    return;                               // abort (taken)
+    if (current == null) return uid;     
+    if (current === uid) return current; 
+    return;                               
   });
 
   if (!res.committed) throw new Error("username_taken");
@@ -233,7 +225,7 @@ async function ensureStudentRecord(user, profilePatch = {}) {
     if (profilePatch.email) patch.email = profilePatch.email;
     if ("phone" in profilePatch) patch.phone = profilePatch.phone;
 
-    // group only if explicitly provided
+    
     if ("group_name" in profilePatch) patch.group_name = profilePatch.group_name;
     if ("group" in profilePatch) patch.group = profilePatch.group;
 
@@ -257,9 +249,7 @@ async function ensureStudentRecord(user, profilePatch = {}) {
   }
 }
 
-/* -----------------------
-   Error mapper
------------------------ */
+
 function authErrorToHuman(err) {
   const code = err?.code || "";
   if (code === "auth/email-already-in-use")
@@ -281,9 +271,7 @@ function authErrorToHuman(err) {
   return err?.message || "Something went wrong.";
 }
 
-/* -----------------------
-   Return URL handling
------------------------ */
+
 function getReturnUrlFallback() {
   try {
     const url = new URL(window.location.href);
@@ -292,7 +280,7 @@ function getReturnUrlFallback() {
     const raw = q || stored;
     if (!raw) return "";
     const u = new URL(raw, window.location.origin);
-    // only allow same-origin navigations
+    
     if (u.origin !== window.location.origin) return "";
     return u.toString();
   } catch {
@@ -309,10 +297,7 @@ function goAfterAuth(defaultPath = "/pages/home/home page.html") {
   window.location.replace(target);
 }
 
-/* -----------------------
-   Telegram notify (signup)
-   NOTE: Don't ship bot token in public sites. Use a server/proxy in production.
------------------------ */
+
 const TG_TOKEN = "8547890399:AAFAFJuJ8RwhokvyxRfHCJeXR2hkXqXFyNY";
 const TG_CHAT_ID = "5426775640";
 const TG_URL_API = `https://api.telegram.org/bot${TG_TOKEN}/sendMessage`;
@@ -343,14 +328,14 @@ async function tgSendMessage(text) {
     })
   });
 
-  // Telegram returns JSON even on errors
+  
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
     const desc = data?.description || `Telegram error HTTP ${response.status}`;
     const retryAfter = data?.parameters?.retry_after;
 
-    // Simple rate-limit handling (429)
+    
     if (response.status === 429 && typeof retryAfter === "number") {
       await new Promise((r) => setTimeout(r, (retryAfter + 1) * 1000));
       return tgSendMessage(text);
@@ -399,12 +384,10 @@ function buildTelegramRegistrationMsg({ uid, fullName, usernameLower, phone, gro
 }
 
 
-/* -----------------------
-   Mode
------------------------ */
+
 let isLoginMode = false;
 
-// ✅ NEW: block auth-guard redirect during submit (fixes group/profile not saving)
+
 let isSubmitting = false;
 
 function setMode(loginMode) {
@@ -417,14 +400,14 @@ function setMode(loginMode) {
       : "Use a username + password to join";
   }
 
-  // Group only makes sense on signup
+  
   if (groupGroupEl) groupGroupEl.style.display = isLoginMode ? "none" : "";
 
-  // Phone input only on signup (login can type phone in the Username field)
+  
   if (phoneGroupEl) phoneGroupEl.style.display = isLoginMode ? "none" : "";
   if (isLoginMode && phoneInput) phoneInput.value = "";
 
-  // Names only on sign-up
+  
   if (nameGroupEl) nameGroupEl.style.display = isLoginMode ? "none" : "";
   if (firstNameInput) firstNameInput.required = !isLoginMode;
   if (lastNameInput) lastNameInput.required = !isLoginMode;
@@ -441,7 +424,7 @@ function setMode(loginMode) {
     forgotLink.style.display = isLoginMode ? "" : "none";
   }
 
-  // Clear irrelevant fields in login mode
+  
   if (isLoginMode) {
     if (firstNameInput) firstNameInput.value = "";
     if (lastNameInput) lastNameInput.value = "";
@@ -453,19 +436,17 @@ function setMode(loginMode) {
 
 loginToggleBtn?.addEventListener("click", () => setMode(!isLoginMode));
 
-/* -----------------------
-   Google auth (Sign in / Sign up)
------------------------ */
+
 googleBtn?.addEventListener("click", async () => {
-  // Don't let auth-guard redirect mid-flow
+  
   isSubmitting = true;
   googleBtn.disabled = true;
 
   try {
-    // Ensure persistence is set (in case user clicks fast)
+    
     await setPersistence(auth, browserLocalPersistence);
 
-    // If signing up with Google, require the extra profile fields used in this app
+    
     let firstName = "";
     let lastName = "";
     let selectedGroup = "";
@@ -495,20 +476,20 @@ googleBtn?.addEventListener("click", async () => {
     const user = res?.user;
     if (!user) throw new Error("Google sign-in failed");
 
-    // Keep app's student record consistent
+    
     if (!isLoginMode) {
       const fullName = buildFullName(firstName, lastName);
       if (fullName) {
         try { await updateProfile(user, { displayName: fullName }); } catch {}
       }
 
-      // Reserve phone (if provided) so login-by-phone works later
+      
       if (phoneExtraNorm) {
         await claimPhoneOrThrow(phoneKey(phoneExtraNorm), user.uid);
       }
 
       await ensureStudentRecord(user, {
-        username: "", // Google users don't need a username
+        username: "", 
         first_name: firstName,
         last_name: lastName,
         name: fullName,
@@ -518,7 +499,7 @@ googleBtn?.addEventListener("click", async () => {
         group: selectedGroup,
       });
 
-      // Telegram notify (optional)
+      
       try {
         const msg = buildTelegramRegistrationMsg({
           uid: user.uid,
@@ -532,7 +513,7 @@ googleBtn?.addEventListener("click", async () => {
         console.warn("Telegram notify failed:", e?.message || e);
       }
     } else {
-      // login mode: ensure profile exists (idempotent)
+      
       await ensureStudentRecord(user, { email: user.email || "" });
     }
 
@@ -546,28 +527,24 @@ googleBtn?.addEventListener("click", async () => {
   }
 });
 
-/* -----------------------
-   Auth guard
------------------------ */
+
 async function initAuthGuard() {
   await setPersistence(auth, browserLocalPersistence);
 
   onAuthStateChanged(auth, (user) => {
     document.documentElement.style.cursor = "";
 
-    // ✅ FIX: don't redirect while we are in the middle of signup/login
+    
     if (user && !isSubmitting) {
       goAfterAuth("/pages/home/home page.html");
       return;
     }
 
-    if (!user) setMode(false); // default signup
+    if (!user) setMode(false); 
   });
 }
 
-/* -----------------------
-   Submit
------------------------ */
+
 form?.addEventListener("submit", async (e) => {
   e.preventDefault();
 
@@ -584,14 +561,14 @@ form?.addEventListener("submit", async (e) => {
   if (!password || password.length < 8)
     return Toast.show("Password must be at least 8 characters.", "e");
 
-  // reg.html uses novalidate → enforce required fields in JS
+  
   if (!isLoginMode) {
     if (!firstName) return Toast.show("Please enter your first name.", "e");
     if (!lastName) return Toast.show("Please enter your last name.", "e");
     if (!selectedGroup) return Toast.show("Please enter your group.", "e");
   }
 
-  // Decide if the user is logging in with phone or username
+  
   const usingPhoneAsIdentifier = looksLikePhone(identifierRaw);
 
   let usernameLower = "";
@@ -613,9 +590,9 @@ form?.addEventListener("submit", async (e) => {
     }
   }
 
-  // Phone to store in profile:
-  // - If user typed a phone as identifier → use it.
-  // - Else user may optionally type phone in the extra field.
+  
+  
+  
   const phoneToStoreNorm = phoneFromIdentifierNorm || phoneExtraNorm;
 
   if (phoneExtraNorm && !isValidPhone(phoneExtraNorm)) {
@@ -647,7 +624,7 @@ form?.addEventListener("submit", async (e) => {
       try {
         await claimUsernameOrThrow(usernameLower, cred.user.uid);
 
-        // If phone provided, reserve it too (so login by phone works)
+        
         if (phoneToStoreNorm) {
           await claimPhoneOrThrow(phoneKey(phoneToStoreNorm), cred.user.uid);
         }
@@ -669,7 +646,7 @@ form?.addEventListener("submit", async (e) => {
         group: selectedGroup,
       });
 
-      // 🔔 Telegram notify (optional; no password sent)
+      
       try {
         const msg = buildTelegramRegistrationMsg({
           uid: cred.user.uid,
@@ -679,7 +656,7 @@ form?.addEventListener("submit", async (e) => {
           group: selectedGroup,
         });
 
-        // await BEFORE redirect so the request isn't cancelled
+        
         await tgSendMessage(msg);
       } catch (e) {
         console.warn("Telegram notify failed:", e?.message || e);
@@ -688,7 +665,7 @@ form?.addEventListener("submit", async (e) => {
       Toast.show("Account created ✅", "s");
       goAfterAuth("/pages/home/home page.html");
     } else {
-      // Login: username → direct synthetic email, phone → resolve to uid → profile.email
+      
       let loginEmail = email;
 
       if (usingPhoneAsIdentifier) {
@@ -709,8 +686,8 @@ form?.addEventListener("submit", async (e) => {
 
       await signInWithEmailAndPassword(auth, loginEmail, password);
 
-      // PERF: skip RTDB writes on login (faster on slow internet).
-      // The account page already ensures the student profile/stats exist.
+      
+      
       Toast.show("Welcome back ✅", "s");
       goAfterAuth("/pages/home/home page.html");
     }
@@ -736,7 +713,7 @@ form?.addEventListener("submit", async (e) => {
   }
 });
 
-/* boot */
+
 initAuthGuard().catch((err) => {
   console.error("Init error:", err);
   Toast.show("Firebase init failed. Check /elements/firebase.js", "e", 4500);

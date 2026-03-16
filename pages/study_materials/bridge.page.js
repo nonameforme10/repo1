@@ -1,47 +1,43 @@
-// Bridge Page
-// - decides Reading vs Listening (from query params)
-// - locks module once started
-// - resumes next incomplete part
-// - aggregates results across parts
-// - pushes totals + increments stats in Firebase
-//
-// URL: /pages/study_materials/bridge.html?mode=reading&test=test1
-// Optional: &parts=pass1,pass2,pass3 (override defaults for this session)
+
+
+
+
+
+
+
+
+
 
 import { auth, db, ref, get, runTransaction, update } from "/elements/firebase.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
 
-// Optional Service Worker cache (speed)
+
 try {
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("/sw.js").catch(() => {});
   }
 } catch {}
 
-/* ----------------------------
-  0) Defaults (overrideable via ?parts=...)
----------------------------- */
 
-// Reading default: 3 passes. Listening default: 4 sections.
+
+
 const DEFAULT_PARTS_BY_MODE = {
   reading: ["pass1", "pass2", "pass3"],
   listening: ["sec1", "sec2", "sec3", "sec4"],
 };
 
-// DB roots used by your engines:
+
 const DB_ROOT_BY_MODE = {
   reading: "readings",
   listening: "listening",
 };
 
-// localStorage prefixes used by your engines:
+
 function storagePrefix(mode, testId, partId) {
-  return `${mode}_${testId}_${partId}`; // reading_test1_pass1, listening_test1_sec2
+  return `${mode}_${testId}_${partId}`; 
 }
 
-/* ----------------------------
-  1) Helpers
----------------------------- */
+
 
 function $(id) { return document.getElementById(id); }
 
@@ -51,9 +47,9 @@ function normalize(s) {
 
 function parseParams() {
   const u = new URL(location.href);
-  const mode = normalize(u.searchParams.get("mode"));  // reading | listening
-  const test = normalize(u.searchParams.get("test"));  // test1 | test2 ...
-  const rawParts = u.searchParams.get("parts");        // optional override: pass1,pass2,...
+  const mode = normalize(u.searchParams.get("mode"));  
+  const test = normalize(u.searchParams.get("test"));  
+  const rawParts = u.searchParams.get("parts");        
   return { mode, test, rawParts };
 }
 
@@ -68,13 +64,13 @@ function isLocked(mode, testId) {
 function setLocked(mode, testId, parts) {
   localStorage.setItem(bridgeKey(mode, testId, "locked"), "true");
   localStorage.setItem(bridgeKey(mode, testId, "startedAt"), new Date().toISOString());
-  // Store parts so engines can detect the final page and show "End test"
+  
   localStorage.setItem(bridgeKey(mode, testId, "parts"), JSON.stringify(parts));
   localStorage.setItem(bridgeKey(mode, testId, "last"), parts[parts.length - 1] || "");
 }
 
 function clearAttempt(mode, testId) {
-  // Clears ONLY local attempt data for this module
+  
   const parts = getParts(mode, testId);
   for (const partId of parts) {
     const pfx = storagePrefix(mode, testId, partId);
@@ -131,11 +127,7 @@ function allDone(mode, testId) {
   return parts.length > 0 && parts.every(p => partSubmitted(mode, testId, p));
 }
 
-/**
- * Folder structure you showed:
- * /reading/test1/pass1/pass1.html
- * /listenings/test1/sec1/part1.html
- */
+
 function buildPartUrl(mode, testId, partId) {
   if (mode === "reading") {
     return `/reading/${testId}/${partId}/${partId}.html`;
@@ -148,7 +140,7 @@ function buildPartUrl(mode, testId, partId) {
   return "/pages/study_materials/study_materials.html";
 }
 
-// Answer keys can be an object { "11": ["A"] } OR an array [null, ["x"], ...]
+
 function normalizeAnswerKey(raw) {
   if (!raw) return {};
   if (Array.isArray(raw)) {
@@ -161,15 +153,13 @@ function normalizeAnswerKey(raw) {
   return raw;
 }
 
-/* ----------------------------
-  2) Totals + Firebase push
----------------------------- */
+
 
 async function computeTotals(mode, testId) {
   const parts = getParts(mode, testId);
   const dbRoot = DB_ROOT_BY_MODE[mode];
 
-  // Fast path: if already computed, reuse (no Firebase reads)
+  
   const cachedTotalsRaw = localStorage.getItem(bridgeKey(mode, testId, "totalsJson"));
   if (cachedTotalsRaw) {
     try {
@@ -185,25 +175,25 @@ async function computeTotals(mode, testId) {
   let total = 0;
   const perPart = {};
 
-  // Load answer keys in parallel; prefer sessionStorage cache created by part pages
+  
   const keyPromises = parts.map(async (partId) => {
     const pfx = storagePrefix(mode, testId, partId);
     const cacheKey = `${pfx}_answer_key_v1`;
 
-    // 1) sessionStorage cache from engines
+    
     try {
       const cached = sessionStorage.getItem(cacheKey);
       if (cached) return { partId, answerKey: normalizeAnswerKey(JSON.parse(cached)) };
     } catch {}
 
-    // 2) Firebase (parallel)
+    
     const dbPath = `${dbRoot}/${testId}/${partId}/questions`;
     const snap = await get(ref(db, dbPath));
     if (!snap.exists()) return { partId, error: `Answer key missing at ${dbPath}` };
 
     const raw = snap.val();
 
-    // Save to sessionStorage so subsequent bridge loads are instant
+    
     try { sessionStorage.setItem(cacheKey, JSON.stringify(raw)); } catch {}
 
     return { partId, answerKey: normalizeAnswerKey(raw) };
@@ -249,37 +239,20 @@ async function computeTotals(mode, testId) {
   return out;
 }
 
-/**
- * ✅ FIXED Firebase Structure
- * NEW STRUCTURE (as per your requirements):
- * students
- *   └── {userId}
- *       └── progress
- *           └── reading OR listening
- *               └── test{number} (e.g., test1, test2)
- *                   ├── pass1/sec1
- *                   │   ├── total: (Integer)
- *                   │   ├── correct: (Integer)
- *                   │   └── incorrect: (Integer)
- *                   ├── pass2/sec2
- *                   │   ├── total: (Integer)
- *                   │   ├── correct: (Integer)
- *                   │   └── incorrect: (Integer)
- *                   └── pass3/sec3...
- */
+
 async function pushResultsToFirebase(uid, mode, testId, totals) {
   const now = new Date().toISOString();
 
-  // Keep your existing "results" path (backwards compatible)
+  
   const resultPath = `students/${uid}/results/${mode}/${testId}`;
 
-  // ✅ NEW: Correct progress tree structure
-  // students/{uid}/progress/{mode}/{testId}/{partId}
+  
+  
   const progressBase = `students/${uid}/progress/${mode}/${testId}`;
 
   const updates = {};
 
-  // Legacy results path (keep for backwards compatibility)
+  
   updates[resultPath] = {
     correct: totals.correct,
     wrong: totals.wrong,
@@ -290,7 +263,7 @@ async function pushResultsToFirebase(uid, mode, testId, totals) {
     testId,
   };
 
-  // ✅ NEW: Write each part DIRECTLY under testId (not under a "parts" node)
+  
   for (const [partId, v] of Object.entries(totals.perPart || {})) {
     if (v && v.error) {
       updates[`${progressBase}/${partId}`] = {
@@ -310,10 +283,10 @@ async function pushResultsToFirebase(uid, mode, testId, totals) {
     }
   }
 
-  // Single multi-path update = faster + fewer RTTs
+  
   await update(ref(db), updates);
 
-  // Stats counter (still only once per full test, controlled by Bridge's localStorage "pushed" flag)
+  
   const statsField = mode === "reading" ? "readingsCompleted" : "listeningsCompleted";
   const statRef = ref(db, `students/${uid}/stats/${statsField}`);
 
@@ -323,9 +296,7 @@ async function pushResultsToFirebase(uid, mode, testId, totals) {
   });
 }
 
-/* ----------------------------
-  3) UI rendering
----------------------------- */
+
 
 function renderParts(mode, testId) {
   const parts = getParts(mode, testId);
@@ -402,9 +373,7 @@ function setHint(mode, testId) {
   hint.textContent = "Done. You can review (open last part) or go back.";
 }
 
-/* ----------------------------
-  4) Buttons
----------------------------- */
+
 
 function isAdminUnlocked(mode, testId) {
   return localStorage.getItem(bridgeKey(mode, testId, "admin")) === "true";
@@ -433,12 +402,7 @@ function enableAdminUnlockHotkey(mode, testId) {
   });
 }
 
-/**
- * ✅ FULL FIX for Back:
- * - Never uses history.back()
- * - Goes to a saved returnUrl (if present)
- * - Else goes to Study Materials page
- */
+
 function setButtons(mode, testId) {
   const primary = $("primaryBtn");
   const secondary = $("secondaryBtn");
@@ -457,7 +421,7 @@ function setButtons(mode, testId) {
   const locked = isLocked(mode, testId);
   const parts = getParts(mode, testId);
 
-  // Hide reset by default (only admin can see it)
+  
   const admin = isAdminUnlocked(mode, testId);
   reset.style.display = admin ? "inline-flex" : "none";
 
@@ -518,14 +482,12 @@ location.href = buildPartUrl(mode, testId, last);
   };
 }
 
-/* ----------------------------
-  5) Main
----------------------------- */
+
 
 async function main() {
   const { mode, test, rawParts } = parseParams();
 
-  // validate
+  
   if (!DEFAULT_PARTS_BY_MODE[mode] || !/^test\d+$/i.test(test)) {
     $("bridgeTitle").textContent = "Invalid link";
     $("bridgeSub").textContent = "Missing or wrong query params. Use ?mode=reading&test=test1";
@@ -536,7 +498,7 @@ async function main() {
     return;
   }
 
-  // ✅ Save returnUrl ONCE (best UX) — only if referrer is your study materials area
+  
   const returnUrlKey = bridgeKey(mode, test, "returnUrl");
   if (!localStorage.getItem(returnUrlKey)) {
     const refUrl = document.referrer || "";
@@ -552,8 +514,8 @@ async function main() {
     }
   }
 
-  // ✅ Only set parts override if NOT locked yet
-  // (prevents overwriting the locked session on refresh / revisit)
+  
+  
   if (!isLocked(mode, test)) {
     const overrideParts = validateAndNormalizeParts(mode, rawParts);
     localStorage.setItem(bridgeKey(mode, test, "parts"), JSON.stringify(overrideParts));
@@ -568,11 +530,11 @@ async function main() {
   setButtons(mode, test);
   setHint(mode, test);
 
-  // show current totals (local) if available
+  
   const cached = localStorage.getItem(bridgeKey(mode, test, "summaryText"));
   if (cached) $("summaryBox").textContent = cached;
 
-  // Auth protect + push results on completion
+  
   onAuthStateChanged(auth, async (user) => {
     if (!user) {
       location.href = "/index.html";
@@ -591,7 +553,7 @@ async function main() {
         try {
           await pushResultsToFirebase(user.uid, mode, test, totals);
           localStorage.setItem(bridgeKey(mode, test, "pushed"), "true");
-          // ✅ FIX: Also store user-specific completion flag for menu pages
+          
           localStorage.setItem(`bridge_${mode}_${test}_pushed_${user.uid}`, "true");
         } catch (e) {
           console.error(e);

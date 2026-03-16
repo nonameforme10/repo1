@@ -22,12 +22,10 @@ import {
   set,
 } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
 
-/* -----------------------------
-  Helpers
------------------------------ */
+
 const $ = (id) => document.getElementById(id);
 
-// Generate Random Consistent Color based on User ID
+
 function getAvatarColor(str) {
   const colors = [
     '#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981', 
@@ -83,13 +81,11 @@ function scrollToBottomIfNearEnd(container) {
   if (nearBottom) container.scrollTop = container.scrollHeight;
 }
 
-/* -----------------------------
-  RTDB Paths & State
------------------------------ */
+
 const MESSAGES_PATH = "global_chat/messages";
 const TYPING_PATH = "global_chat/typing";
 
-// Network Detection
+
 const NET = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
 const IS_SLOW_NET = !!(NET && (NET.saveData || String(NET.effectiveType || "").includes("2g")));
 const MESSAGES_LIMIT = IS_SLOW_NET ? 25 : 50;
@@ -106,9 +102,7 @@ let messageToDelete = null;
 let typingTimer = null;
 let isCurrentlyTyping = false;
 
-/* -----------------------------
-  Performance: batched icon refresh + small local cache
------------------------------ */
+
 const CHAT_CACHE_KEY = "global_chat_cache_v1";
 let chatCacheItems = null; 
 
@@ -131,7 +125,7 @@ function saveChatCache(items) {
     const payload = { v: 1, savedAtMs: Date.now(), items: items.slice(-MESSAGES_LIMIT) };
     localStorage.setItem(CHAT_CACHE_KEY, JSON.stringify(payload));
   } catch {
-    // ignore
+    
   }
 }
 
@@ -169,7 +163,7 @@ function refreshIconsSoon() {
     try {
       window.lucide.createIcons({ attrs: { "stroke-width": 2 } });
     } catch {
-      // ignore
+      
     }
   });
 }
@@ -180,9 +174,7 @@ async function loadMyProfile(uid) {
   return snap.exists() ? (snap.val() || {}) : {};
 }
 
-/* -----------------------------
-  Typing Indicator Functions
------------------------------ */
+
 async function setTyping(isTyping) {
   if (!currentUser) return;
   
@@ -240,16 +232,14 @@ function listenToTyping() {
   });
 }
 
-/* -----------------------------
-  Edit & Delete Functions (OPTIMIZED)
------------------------------ */
+
 async function editMessage(msgKey, newText) {
   if (!currentUser) throw new Error("Not logged in.");
   const text = String(newText || "").trim();
   if (!text) throw new Error("Message cannot be empty.");
 
-  // OPTIMIZATION: Removed the 'get()' check. 
-  // We send the update directly. Firebase Rules must handle ownership security.
+  
+  
   const msgRef = ref(rtdb, `${MESSAGES_PATH}/${msgKey}`);
   
   await update(msgRef, {
@@ -262,15 +252,13 @@ async function editMessage(msgKey, newText) {
 async function deleteMessage(msgKey) {
   if (!currentUser) throw new Error("Not logged in.");
 
-  // OPTIMIZATION: Removed the 'get()' check.
-  // Direct delete request.
+  
+  
   const msgRef = ref(rtdb, `${MESSAGES_PATH}/${msgKey}`);
   await remove(msgRef);
 }
 
-/* -----------------------------
-  Render Logic
------------------------------ */
+
 function renderMessageNode(msg, msgKey) {
   const wrap = document.createElement("div");
   wrap.setAttribute("data-msg-key", msgKey);
@@ -454,16 +442,14 @@ function normalizeMessage(v) {
   };
 }
 
-/* -----------------------------
-  Listening Logic
------------------------------ */
+
 async function startListening() {
   if (detachLive) return;
 
   const list = $("chatList");
   if (!list) return;
 
-  // 1. FAST RENDER: Cache
+  
   const cached = loadChatCache();
   if (cached.length) {
     list.innerHTML = "";
@@ -479,8 +465,8 @@ async function startListening() {
     setStatus(false, "Loading…");
   }
 
-  // 2. NETWORK FETCH
-  // Ensure '.indexOn': ['createdAtMs'] exists in Firebase Rules!
+  
+  
   const baseQ = query(
     ref(rtdb, MESSAGES_PATH),
     orderByChild("createdAtMs"),
@@ -503,7 +489,7 @@ async function startListening() {
       if (typeof msg.createdAtMs === "number") lastCreatedAt = msg.createdAtMs;
     });
 
-    // Replace cache with fresh authoritative data
+    
     list.innerHTML = "";
     list.appendChild(frag);
     list.scrollTop = list.scrollHeight;
@@ -512,7 +498,7 @@ async function startListening() {
 
     setStatus(true, "Live");
 
-    // 3. LISTEN FOR NEW
+    
     const liveQ = typeof lastCreatedAt === "number"
         ? query(ref(rtdb, MESSAGES_PATH), orderByChild("createdAtMs"), startAfter(lastCreatedAt))
         : query(ref(rtdb, MESSAGES_PATH), orderByChild("createdAtMs"));
@@ -527,14 +513,14 @@ async function startListening() {
       scrollToBottomIfNearEnd(list);
     });
 
-    // Listen for edits
+    
     detachChanged = onChildChanged(ref(rtdb, MESSAGES_PATH), (child) => {
       const v = child.val() || {};
       const msg = normalizeMessage(v);
       updateMessageNode(child.key, msg);
     });
 
-    // Listen for deletes
+    
     detachRemoved = onChildRemoved(ref(rtdb, MESSAGES_PATH), (child) => {
       removeMessageNode(child.key);
     });

@@ -42,7 +42,7 @@
 .accent-line {
     width: 60px;
     height: 4px;
-    background: #1e293b; /* Dark like your Logo */
+    background: #1e293b; 
     margin: 15px auto;
     border-radius: 2px;
 }
@@ -59,7 +59,7 @@
     aspect-ratio: 1 / 1;
     background: #ffffff;
     border: 1px solid #e2e8f0;
-    border-radius: 16px; /* Rounded corners but not a circle */
+    border-radius: 16px; 
     color: #1e293b;
     font-size: 28px;
     font-weight: 700;
@@ -69,16 +69,16 @@
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
 }
 
-/* Hover Effect: The button "lifts" and the border highlights */
+
 .links-wrapper button:hover {
     transform: translateY(-8px);
     background: #ffffff;
     border-color: #1e293b;
     box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-    color: gray; /* Changes to your brand green on hover */
+    color: gray; 
 }
 
-/* Small label for the buttons so they don't look like just floating numbers */
+
 .links-wrapper button::before {
     content: 'MODULE';
     position: absolute;
@@ -91,7 +91,7 @@
     font-weight: 600;
 }
 
-/* Responsive adjustments */
+
 @media (max-width: 1024px) {
     .links-wrapper { grid-template-columns: repeat(3, 1fr); }
 }
@@ -102,7 +102,7 @@
     </style>
     <style>
 
-    /* Completion colors (localStorage-based) */
+    
     .links-wrapper button.todo{
     border: 2px solid rgba(220,38,38,.55) !important;
     box-shadow: 0 0 0 4px rgba(220,38,38,.10);
@@ -319,7 +319,7 @@ const uid = user.uid;
             if (p === "/") return "/";
 
             var parts = p.split("/").filter(Boolean);
-            // remove last segment (file OR folder)
+            
             parts.pop();
             return "/" + (parts.length ? parts.join("/") + "/" : "");
             }
@@ -338,11 +338,11 @@ const uid = user.uid;
             var back = document.getElementById("backFab");
             if (!back) return;
 
-            var hubHref = back.getAttribute("href");                 // main target
-            var parentHref = back.getAttribute("data-parent-href");  // optional real parent page
+            var hubHref = back.getAttribute("href");                 
+            var parentHref = back.getAttribute("data-parent-href");  
 
             back.addEventListener("click", function (e) {
-                // keep normal browser behaviors (new tab, etc.)
+                
                 if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
 
                 e.preventDefault();
@@ -350,18 +350,18 @@ const uid = user.uid;
                 var cur = normPath(window.location.pathname);
                 var hub = normPath(hubHref);
 
-                // If we're already on the hub page, go to parent
+                
                 if (cur === hub) {
                 if (parentHref) {
                     window.location.href = parentHref;
                 } else {
-                    // best-effort: go one folder up
+                    
                     window.location.href = parentPath(cur);
                 }
                 return;
                 }
 
-                // Otherwise always go to hub (never history-based)
+                
                 window.location.href = hubHref;
             });
             }

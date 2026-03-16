@@ -1,4 +1,4 @@
-/* Account Page Styles - Missing from main stylesheet */
+
 
 .account-container {
     max-width: 1400px;
@@ -288,7 +288,7 @@
     margin: 0 0 20px 0;
 }
 
-/* Responsive Styles for Account Page */
+
 @media (max-width: 920px) {
     .nav-link span,
     .nav-a span {
@@ -414,9 +414,7 @@
 }
 
 
-/* -----------------------------
-   Overview: History
------------------------------- */
+
 .history-card{
     border: 1px solid #e5e7eb;
     border-radius: 16px;

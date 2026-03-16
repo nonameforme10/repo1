@@ -199,7 +199,7 @@ const quotes = [
     "The way to get started is to quit talking and begin doing. - Walt Disney"
 ];
 
-let currentQuoteIndex = 0; // Track current quote to avoid repeats
+let currentQuoteIndex = 0; 
 
 function updateClock() {
     const now = new Date();
@@ -237,7 +237,7 @@ function displayRandomQuote() {
         return;
     }
     
-    // Get a random index different from current one
+    
     let randomIndex;
     do {
         randomIndex = Math.floor(Math.random() * quotes.length);
@@ -245,7 +245,7 @@ function displayRandomQuote() {
     
     currentQuoteIndex = randomIndex;
     
-    // Add fade-out effect
+    
     quoteElement.style.opacity = '0';
     quoteElement.style.transition = 'opacity 0.3s ease';
     
@@ -253,7 +253,7 @@ function displayRandomQuote() {
         quoteElement.textContent = quotes[randomIndex];
         quoteElement.style.opacity = '1';
         
-        // Reinitialize Lucide icons after DOM update
+        
         if (typeof lucide !== 'undefined') {
             lucide.createIcons();
         }
@@ -272,9 +272,9 @@ function shareQuote() {
             text: quoteText
         }).catch(err => console.log('Error sharing:', err));
     } else {
-        // Fallback: copy to clipboard
+        
         navigator.clipboard.writeText(quoteText).then(() => {
-            // Find the button that was clicked
+            
             const shareButtons = document.querySelectorAll('.quote-btn');
             let btn = null;
             

@@ -1310,3 +1310,226 @@ footer {
   .back-fab{ padding: 10px 12px; }
   .back-fab span{ display: none; }
 }
+
+
+.arcade-section {
+    background-color: #0f172a;
+    background-image:
+        linear-gradient(180deg, rgba(15, 23, 42, 0.92), rgba(15, 23, 42, 0.92)),
+        url('/assets/dark-abstract-black-minimal-4k-q0-2880x1800.webp');
+    background-size: cover;
+    background-position: 50% 40%;
+    background-repeat: no-repeat;
+    padding: 80px 5%;
+    min-height: calc(100vh - 150px);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+.arcade-header {
+    text-align: center;
+    margin-bottom: 50px;
+    width: 100%;
+    max-width: 1200px;
+}
+
+.arcade-header h2 {
+    font-size: clamp(32px, 5vw, 48px);
+    margin: 0 0 15px 0;
+    font-weight: 700;
+}
+
+.arcade-header p {
+    color: #9ca3af;
+    font-size: 18px;
+    margin: 0;
+}
+
+.arcade-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 30px;
+    max-width: 1200px;
+    width: 100%;
+}
+
+.arcade-card {
+    background: rgba(31, 41, 55, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 16px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.arcade-card:hover {
+    transform: translateY(-8px);
+    border-color: rgba(251, 191, 36, 0.3);
+    box-shadow: 0 15px 30px rgba(0, 0, 0, 0.4);
+}
+
+.arcade-thumb {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    background: #111827;
+}
+
+.arcade-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0.85;
+    transition: opacity 0.3s ease, transform 0.5s ease;
+}
+
+.arcade-card:hover .arcade-thumb img {
+    opacity: 0.45;
+    transform: scale(1.05);
+}
+
+.play-overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.9);
+    color: #fbbf24;
+    opacity: 0;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    z-index: 2;
+}
+
+.arcade-card:hover .play-overlay {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+}
+
+.arcade-info {
+    padding: 24px;
+}
+
+.category-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+.arcade-info h3 {
+    margin: 12px 0 8px;
+    font-size: 20px;
+    color: #ffffff;
+    font-weight: 600;
+}
+
+.arcade-info p {
+    margin: 0;
+    font-size: 14px;
+    color: #9ca3af;
+    line-height: 1.5;
+}
+
+.game-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(15, 23, 42, 0.95);
+    backdrop-filter: blur(10px);
+    z-index: 3000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.game-modal-overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.game-play-container.modal-version {
+    width: 100%;
+    max-width: 1000px;
+    transform: translateY(20px);
+    transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.game-modal-overlay.active .game-play-container.modal-version {
+    transform: translateY(0);
+}
+
+.modal-controls {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.game-play-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.game-play-header h2 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 700;
+    color: #fbbf24;
+    letter-spacing: 1px;
+}
+
+.game-iframe-wrapper {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 10;
+    background-color: #000000;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+}
+
+.game-iframe-wrapper iframe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border: none;
+}
+
+@media (max-width: 900px) {
+    .arcade-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 769px) {
+    .arcade-grid {
+        grid-template-columns: 1fr;
+    }
+    .game-play-header {
+        flex-direction: column;
+        gap: 16px;
+        align-items: flex-start;
+    }
+    .modal-controls {
+        width: 100%;
+        justify-content: flex-start;
+    }
+}

@@ -1,4 +1,4 @@
-// account.page.js (ES module)
+
 
 import { auth, rtdb } from "/elements/firebase.js";
 
@@ -23,16 +23,14 @@ import {
   onValue,
 } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
 
-/* -----------------------------
-   Helper functions
------------------------------ */
+
 function todayISO() {
   const d = new Date();
   const pad = (n) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-// Username -> synthetic email (matches your reg.page.js logic)
+
 function normalizeUsername(v) {
   return String(v || "")
     .trim()
@@ -66,15 +64,13 @@ function isValidPhone(phoneNorm) {
   return digits.length >= 7 && digits.length <= 15;
 }
 
-// ✅ FIXED: Simplified group extraction - no auto-derivation from email
+
 function getGroupFromProfile(profile) {
   const g = profile?.group_name ?? profile?.group ?? profile?.groupName;
   return String(g || "").trim() || "Ungrouped";
 }
 
-/* -----------------------------
-   DOM helpers
------------------------------ */
+
 const $id = (id) => document.getElementById(id);
 
 function safeText(el, value) {
@@ -109,9 +105,7 @@ function getInitials(name, fallbackEmail) {
   return base.slice(0, 2).toUpperCase();
 }
 
-/* -----------------------------
-   Toast
------------------------------ */
+
 const Toast = (() => {
   const id = "toast-container-eduventure";
   const ensure = () => {
@@ -156,9 +150,7 @@ const Toast = (() => {
   return { show };
 })();
 
-/* -----------------------------
-   Navigation
------------------------------ */
+
 function setupSectionNavigation() {
   const links = Array.from(document.querySelectorAll(".sidebar-nav .nav-link"));
   const sections = Array.from(document.querySelectorAll(".content-section"));
@@ -185,9 +177,7 @@ function setupSectionNavigation() {
   show(initial || "overview");
 }
 
-/* -----------------------------
-   RTDB helpers
------------------------------ */
+
 let currentUser = null;
 let cachedProfile = null;
 let cachedStats = null;
@@ -201,9 +191,7 @@ let unsubscribeFns = [];
 
 
 
-/* -----------------------------
-   Local cache (fast first paint for slow internet)
------------------------------ */
+
 const CACHE_PREFIX = "eduventure_v1_";
 function cacheKey(uid, part) {
   return `${CACHE_PREFIX}${part}_${uid}`;
@@ -222,7 +210,7 @@ function writeCachedStudent(uid) {
     if (cachedProfile) localStorage.setItem(cacheKey(uid, "profile"), JSON.stringify(cachedProfile));
     if (cachedStats) localStorage.setItem(cacheKey(uid, "stats"), JSON.stringify(cachedStats));
   } catch {
-    // ignore quota / private mode issues
+    
   }
 }
 
@@ -249,12 +237,12 @@ function phoneIndexRef(phoneKeyDigits) {
   return ref(rtdb, `phones/${phoneKeyDigits}`);
 }
 
-// ✅ idempotent: if already claimed by same uid, keep it
+
 async function claimPhoneOrThrow(phoneKeyDigits, uid) {
   const res = await runTransaction(phoneIndexRef(phoneKeyDigits), (current) => {
-    if (current == null) return uid;     // claim new
-    if (current === uid) return current; // already ours
-    return;                               // abort (taken)
+    if (current == null) return uid;     
+    if (current === uid) return current; 
+    return;                               
   });
 
   if (!res.committed) throw new Error("phone_taken");
@@ -268,13 +256,11 @@ async function releasePhoneIfOwned(phoneKeyDigits, uid) {
       await update(ref(rtdb), { [`phones/${phoneKeyDigits}`]: null });
     }
   } catch {
-    // ignore
+    
   }
 }
 
-/* -----------------------------
-   Username index helpers (unique usernames)
------------------------------ */
+
 function usernameIndexRef(uname) {
   return ref(rtdb, `usernames/${uname}`);
 }
@@ -282,17 +268,17 @@ function usernameIndexRefStudents(uname) {
   return ref(rtdb, `students/usernames/${uname}`);
 }
 
-// idempotent: if already claimed by same uid, keep it
+
 async function claimUsernameOrThrow(uname, uid) {
   const res = await runTransaction(usernameIndexRef(uname), (current) => {
     if (current == null) return uid;
     if (current === uid) return current;
-    return; // abort (taken)
+    return; 
   });
 
   if (!res.committed) throw new Error("username_taken");
 
-  // Mirror to legacy path too (some older pages may still read it)
+  
   await update(ref(rtdb), {
     [`students/usernames/${uname}`]: uid,
   });
@@ -309,7 +295,7 @@ async function releaseUsernameIfOwned(uname, uid) {
       });
     }
   } catch {
-    // ignore
+    
   }
 }
 
@@ -499,12 +485,12 @@ async function refreshProgressAndHistory(uid) {
     renderHistory(historyEntries);
 
     const derived = deriveStatsFrom(cachedProgress || {}, cachedMarksWords || {}, cachedStats || {});
-    // render immediately (even if we don't sync)
+    
     cachedStats = derived;
     writeCachedStudent(uid);
     renderStats(cachedStats);
 
-    // also push to RTDB so other pages can use it
+    
     scheduleStatsSync(uid, derived);
 
   } catch (e) {
@@ -514,11 +500,11 @@ async function refreshProgressAndHistory(uid) {
 }
 
 function startRealtimeListeners(uid) {
-  // cleanup old
+  
   try { unsubscribeFns.forEach((u) => u()); } catch {}
   unsubscribeFns = [];
 
-  // stats listener
+  
   const statsRef = studentStatsRef(uid);
   const offStats = onValue(statsRef, (snap) => {
     cachedStats = snap.exists() ? (snap.val() || {}) : (cachedStats || {});
@@ -527,7 +513,7 @@ function startRealtimeListeners(uid) {
   });
   unsubscribeFns.push(() => offStats());
 
-  // progress listener (drives history + derived stats)
+  
   const progRef = studentProgressRef(uid);
   const offProg = onValue(progRef, (snap) => {
     cachedProgress = snap.exists() ? (snap.val() || {}) : null;
@@ -535,7 +521,7 @@ function startRealtimeListeners(uid) {
     renderHistory(historyEntries);
 
     const derived = deriveStatsFrom(cachedProgress || {}, cachedMarksWords || {}, cachedStats || {});
-    // immediate UI update
+    
     cachedStats = derived;
     writeCachedStudent(uid);
     renderStats(cachedStats);
@@ -543,7 +529,7 @@ function startRealtimeListeners(uid) {
   });
   unsubscribeFns.push(() => offProg());
 
-  // marks listener (words learned)
+  
   const marksRef = studentMarksWordsRef(uid);
   const offMarks = onValue(marksRef, (snap) => {
     cachedMarksWords = snap.exists() ? (snap.val() || {}) : null;
@@ -557,9 +543,7 @@ function startRealtimeListeners(uid) {
   unsubscribeFns.push(() => offMarks());
 }
 
-/* -----------------------------
-   Render
------------------------------ */
+
 function renderProfile(user, profile) {
   const name = profile?.name || user?.displayName || deriveNameFromEmail(user?.email);
   const email = profile?.email || user?.email || "";
@@ -619,7 +603,7 @@ function prettyTitleFromKey(key) {
 function formatWhen(ms) {
   if (!Number.isFinite(ms)) return "—";
   const d = new Date(ms);
-  // short but readable
+  
   return d.toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
@@ -791,7 +775,7 @@ function deriveStatsFrom(progress, marksWords, currentStats) {
       if (cat === "listenings") listenings += 1;
       else if (cat === "readings") readings += 1;
       else if (cat === "lessons") lessons += 1;
-      // other buckets don't affect these counters
+      
     }
   }
 
@@ -802,7 +786,7 @@ function deriveStatsFrom(progress, marksWords, currentStats) {
     }
   }
 
-  // default to 0 if missing
+  
   s.listeningsCompleted = Number.isFinite(listenings) ? listenings : (s.listeningsCompleted ?? 0);
   s.readingsCompleted = Number.isFinite(readings) ? readings : (s.readingsCompleted ?? 0);
   s.lessonsCompleted = Number.isFinite(lessons) ? lessons : (s.lessonsCompleted ?? 0);
@@ -833,7 +817,7 @@ function scheduleStatsSync(uid, derivedStats) {
       const updatePayload = {};
       for (const k of Object.keys(patch)) updatePayload[`students/${uid}/stats/${k}`] = patch[k];
       await update(ref(rtdb), updatePayload);
-      // cachedStats will update via onValue listener, but keep local fallback:
+      
       cachedStats = { ...base, ...patch };
       writeCachedStudent(uid);
       renderStats(cachedStats);
@@ -843,9 +827,7 @@ function scheduleStatsSync(uid, derivedStats) {
   }, 220);
 }
 
-/* -----------------------------
-   Profile editing
------------------------------ */
+
 function setupProfileEditing() {
   const editBtn = $id("editProfileBtn");
   const saveBtn = $id("saveProfileBtn");
@@ -879,7 +861,7 @@ function setupProfileEditing() {
     const groupEl = $id("editGroup");
 
     const newName = String(nameEl?.value || "").trim();
-    // UI label might say "Email", but in your app this input is the USERNAME
+    
     const newUsernameRaw = String(emailEl?.value || "").trim();
     const newPhone = String(phoneEl?.value || "").trim();
     const newGroup = String(groupEl?.value || "").trim();
@@ -926,20 +908,20 @@ function setupProfileEditing() {
       const desiredAuthEmail = usernameToEmail(newUsername);
       const isUsernameChange = newUsername !== oldUsername;
 
-      // 1) Reserve username (prevents duplicates)
+      
       if (isUsernameChange) {
         await claimUsernameOrThrow(newUsername, uid);
         usernameClaimed = true;
         claimedUsername = newUsername;
       }
 
-      // 2) Phone index (login by phone). Claim new number if changed.
+      
       if (newPhoneKey && newPhoneKey !== oldPhoneKey) {
         await claimPhoneOrThrow(newPhoneKey, uid);
         phoneClaimed = true;
       }
 
-      // 3) Save group/name even if auth email (login username) change fails
+      
       let nameErr = null;
       let emailErr = null;
       let emailChanged = false;
@@ -952,7 +934,7 @@ function setupProfileEditing() {
         }
       }
 
-      // Only change Auth email when this is an email+password account that uses the synthetic email scheme.
+      
       const shouldChangeAuthEmail =
         isUsernameChange &&
         hasPasswordProvider(currentUser) &&
@@ -968,7 +950,7 @@ function setupProfileEditing() {
         }
       }
 
-      // If auth email change failed, rollback reserved username (so we don't lock it)
+      
       if (emailErr && usernameClaimed) {
         await releaseUsernameIfOwned(claimedUsername, uid);
         usernameClaimed = false;
@@ -990,7 +972,7 @@ function setupProfileEditing() {
       });
       profileCommitted = true;
 
-      // Release old username mapping only after successful commit
+      
       if (!emailErr && isUsernameChange) {
         await releaseUsernameIfOwned(oldUsername, uid);
       }
@@ -999,7 +981,7 @@ function setupProfileEditing() {
       renderProfile(currentUser, cachedProfile);
 
       profileView.style.display = "grid";
-      // Clean up old phone mapping (only if we owned it)
+      
       if (oldPhoneKey && oldPhoneKey !== newPhoneKey) {
         await releasePhoneIfOwned(oldPhoneKey, uid);
       }
@@ -1025,7 +1007,7 @@ function setupProfileEditing() {
         console.error("Display name update failed:", nameErr);
         Toast.show("Saved ✅, but display name update failed. Check console.", "info", 4200);
       } else if (!shouldChangeAuthEmail && isUsernameChange) {
-        // Phone/Google users: username is only for profile display
+        
         Toast.show("Username saved ✅ (login method unchanged).", "success", 3600);
       } else {
         Toast.show("Saved ✅", "success");
@@ -1033,7 +1015,7 @@ function setupProfileEditing() {
     } catch (err) {
       console.error(err);
 
-      // Best-effort rollback if we failed before committing the profile update
+      
       try {
         if (!profileCommitted) {
           if (usernameClaimed && claimedUsername) {
@@ -1058,15 +1040,13 @@ function setupProfileEditing() {
   });
 }
 
-/* -----------------------------
-   Password Change
------------------------------ */
+
 function setupPasswordChange() {
   const changePasswordBtn =
     document.getElementById("changePasswordBtn") ||
     document.querySelector('[data-action="change-password"]');
 
-  // If the account page HTML does not include the button, just skip.
+  
   if (!changePasswordBtn) return;
 
   changePasswordBtn.addEventListener("click", async () => {
@@ -1079,7 +1059,7 @@ function setupPasswordChange() {
       Array.isArray(currentUser.providerData) &&
       currentUser.providerData.some((p) => p?.providerId === "password");
 
-    // Google/Phone accounts do not have a password to change (unless you link email+password).
+    
     if (!hasPasswordProvider) {
       Toast.show(
         "This account doesn’t use a password sign-in (Google/Phone). To change it, sign in with email+password or link a password first.",
@@ -1095,7 +1075,7 @@ function setupPasswordChange() {
     }
 
 
-    // Create modal for password change
+    
     const modal = document.createElement("div");
     modal.style.cssText = `
       position: fixed;
@@ -1203,7 +1183,7 @@ function setupPasswordChange() {
       confirmBtn.disabled = true;
 
       try {
-        // Reauthenticate user with current password
+        
         const credential = EmailAuthProvider.credential(
           currentUser.email,
           currentPassword
@@ -1211,7 +1191,7 @@ function setupPasswordChange() {
         
         await reauthenticateWithCredential(currentUser, credential);
         
-        // Update password
+        
         await updatePassword(currentUser, newPassword);
         
         Toast.show("Password changed successfully! ✅", "success");
@@ -1234,14 +1214,12 @@ function setupPasswordChange() {
       }
     });
 
-    // Focus on first input
+    
     setTimeout(() => currentPasswordInput.focus(), 100);
   });
 }
 
-/* -----------------------------
-   Logout
------------------------------ */
+
 window.handleLogout = async function handleLogout() {
   try {
     const ok = window.confirm("Are you sure you want to sign out?");
@@ -1260,13 +1238,11 @@ window.handleLogout = async function handleLogout() {
   }
 };
 
-/* -----------------------------
-   Boot
------------------------------ */
+
 async function bootForUser(user) {
-  // Fast first paint for slow connections:
-  // 1) render from local cache immediately
-  // 2) sync with RTDB in the background
+  
+  
+  
   setLoading(true);
 
   try {
@@ -1275,7 +1251,7 @@ async function bootForUser(user) {
     renderStats(cachedStats);
     if (window.lucide?.createIcons) window.lucide.createIcons();
   } finally {
-    // stop blocking the UI even if the network is slow
+    
     setLoading(false);
   }
 
@@ -1290,7 +1266,7 @@ async function bootForUser(user) {
     await refreshProgressAndHistory(user.uid);
 } catch (err) {
     console.error(err);
-    // keep the cached UI; user can still use the page
+    
     Toast.show("Slow connection: showing cached profile/stats.", "info", 3200);
   }
 }
