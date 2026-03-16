@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+`<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -8,19 +8,19 @@
   <script src="https://unpkg.com/lucide@latest"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
-  <!-- Site-wide layout/styles -->
+  
   <link rel="stylesheet" href="/pages/elements/style.css">
 
-  <!-- Page-specific styles -->
+  
   <link rel="stylesheet" href="/lessons/online.css">
 
-  <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+  <link rel="icon" href="/favicon.png">
 <script src="/assets/UI.js" defer></script>
 </head>
 
 <body class="lessons-page" data-club="english" data-teacher="Abdurahim">
 
-  <!-- Mobile sidebar (matches other pages) -->
+  
   <div class="overlay" id="overlay"></div>
   <div class="sidebar" id="sidebar">
     <button class="sidebar-close" id="closeMenu" aria-label="Close menu">
@@ -76,7 +76,7 @@
     </div>
   </header>
 
-  <!-- Hero (blurred background slider) -->
+  
   <main class="hero lessons-hero">
     <div class="hero-bg" aria-hidden="true">
       <img id="heroBgImg" src="data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%22800%22%20height%3D%22450%22%20viewBox%3D%220%200%20800%20450%22%3E%0A%20%20%3Cdefs%3E%0A%20%20%20%20%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20x2%3D%221%22%20y1%3D%220%22%20y2%3D%221%22%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23fbbf24%22%20stop-opacity%3D%220.35%22/%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%221%22%20stop-color%3D%22%2360a5fa%22%20stop-opacity%3D%220.25%22/%3E%0A%20%20%20%20%3C/linearGradient%3E%0A%20%20%20%20%3ClinearGradient%20id%3D%22b%22%20x1%3D%220%22%20x2%3D%221%22%20y1%3D%221%22%20y2%3D%220%22%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%220%22%20stop-color%3D%22%230f172a%22%20stop-opacity%3D%220.96%22/%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23111827%22%20stop-opacity%3D%220.96%22/%3E%0A%20%20%20%20%3C/linearGradient%3E%0A%20%20%3C/defs%3E%0A%20%20%3Crect%20width%3D%22800%22%20height%3D%22450%22%20rx%3D%2226%22%20fill%3D%22url%28%23b%29%22/%3E%0A%20%20%3Crect%20x%3D%2226%22%20y%3D%2226%22%20width%3D%22748%22%20height%3D%22398%22%20rx%3D%2222%22%20fill%3D%22url%28%23g%29%22/%3E%0A%20%20%3Crect%20x%3D%2256%22%20y%3D%2264%22%20width%3D%22688%22%20height%3D%2250%22%20rx%3D%2214%22%20fill%3D%22rgba%28255%2C255%2C255%2C0.10%29%22/%3E%0A%20%20%3Crect%20x%3D%2256%22%20y%3D%22132%22%20width%3D%22520%22%20height%3D%2220%22%20rx%3D%2210%22%20fill%3D%22rgba%28255%2C255%2C255%2C0.18%29%22/%3E%0A%20%20%3Crect%20x%3D%2256%22%20y%3D%22164%22%20width%3D%22420%22%20height%3D%2220%22%20rx%3D%2210%22%20fill%3D%22rgba%28255%2C255%2C255%2C0.14%29%22/%3E%0A%20%20%3Crect%20x%3D%2256%22%20y%3D%22236%22%20width%3D%22688%22%20height%3D%222%22%20fill%3D%22rgba%28255%2C255%2C255%2C0.20%29%22/%3E%0A%20%20%3Ccircle%20cx%3D%22660%22%20cy%3D%22320%22%20r%3D%2254%22%20fill%3D%22rgba%28255%2C255%2C255%2C0.10%29%22/%3E%0A%20%20%3Ccircle%20cx%3D%22660%22%20cy%3D%22320%22%20r%3D%2238%22%20fill%3D%22rgba%28255%2C255%2C255%2C0.14%29%22/%3E%0A%20%20%3Ctext%20x%3D%2260%22%20y%3D%2298%22%20font-family%3D%22Inter%2CArial%22%20font-size%3D%2230%22%20font-weight%3D%22800%22%20fill%3D%22white%22%3ECERTIFICATE%3C/text%3E%0A%20%20%3Ctext%20x%3D%2260%22%20y%3D%22210%22%20font-family%3D%22Inter%2CArial%22%20font-size%3D%2222%22%20font-weight%3D%22700%22%20fill%3D%22rgba%28255%2C255%2C255%2C0.92%29%22%3EYour%20Certificate%3C/text%3E%0A%20%20%3Ctext%20x%3D%2260%22%20y%3D%22362%22%20font-family%3D%22Inter%2CArial%22%20font-size%3D%2214%22%20font-weight%3D%22600%22%20fill%3D%22rgba%28255%2C255%2C255%2C0.68%29%22%3EReplace%20this%20image%20with%20your%20ImageKit%20certificate%20URL%3C/text%3E%0A%3C/svg%3E" alt="">
@@ -138,7 +138,7 @@
     </div>
   </main>
 
-  <!-- Content -->
+  
   <section class="lessons-wrap">
 
     <div class="mentor-card">
@@ -166,7 +166,7 @@
           <p class="panel-desc">Video, tasks, documents, downloads, and comments.</p>
         </div>
 
-        <!-- Admin: Add lesson modal -->
+        
         <div id="addModal" class="modal-overlay" aria-hidden="true">
           <div class="modal" role="dialog" aria-modal="true" aria-labelledby="addModalTitle">
             <div class="left">
@@ -317,12 +317,14 @@
     </div>
   </footer>
 
-  <!-- Shared scripts used across the site -->
+  
   <script src="/elements/UI.js"></script>
   <script src="/sw.js"></script>
   <script src="/pages/elements/script.js"></script>
 
-  <!-- Page logic -->
+  
   <script type="module" src="/lessons/online.js"></script>
 </body>
 </html>
+
+

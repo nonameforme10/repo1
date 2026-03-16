@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <script src="https://unpkg.com/lucide@latest"></script>
@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Vocabulary</title>
   <link rel="stylesheet" href="/elements/vocab-styling.css" />
-<link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+<link rel="icon" href="/favicon.png">
 <script src="/assets/UI.js" defer></script>
 </head>
 
@@ -148,10 +148,10 @@ function showText(msg) {
 
 
       for (const [k, w] of entries) {
-        const eng = w.eng 🎵 "";
-        const transcription = w.transcription 🎵 "";
-        const uzb = w.uzb 🎵 "";
-        const rus = w.rus 🎵 "";
+        const eng = w.eng ?? "";
+        const transcription = w.transcription ?? "";
+        const uzb = w.uzb ?? "";
+        const rus = w.rus ?? "";
 
         const p = document.createElement("p");
         p.className = "yozuv";
@@ -225,4 +225,6 @@ try {
 <script src="/sw.js"></script>
 </body>
 </html>
+
+
 
