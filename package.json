@@ -1,0 +1,16 @@
+{
+  "name": "eduventure",
+  "private": true,
+  "scripts": {
+    "dev": "next dev ./next-app",
+    "build": "next build ./next-app"
+  },
+  "dependencies": {
+    "next": "14.x",
+    "react": "18.x",
+    "react-dom": "18.x"
+  },
+  "engines": {
+    "node": ">=18.17"
+  }
+}
