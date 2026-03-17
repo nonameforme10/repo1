@@ -2,21 +2,9 @@
 
 
 
-
-
-
-
-
-
 import { auth, db, ref, get, runTransaction, update } from "/elements/firebase.js";
+import { recordTestLeaderboard } from "/pages/elements/leaderboard.sync.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
-
-
-try {
-  if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("/sw.js").catch(() => {});
-  }
-} catch {}
 
 
 
@@ -294,6 +282,27 @@ async function pushResultsToFirebase(uid, mode, testId, totals) {
     const n = Number(cur || 0);
     return n + 1;
   });
+
+  try {
+    const profileSnap = await get(ref(db, `students/${uid}/profile`));
+    const profile = profileSnap.exists() ? (profileSnap.val() || {}) : {};
+    await recordTestLeaderboard(
+      db,
+      uid,
+      {
+        name: profile.name || profile.fullName || "Student",
+        group_name: profile.group_name || profile.group || "Ungrouped"
+      },
+      {
+        correct: totals.correct,
+        wrong: totals.wrong,
+        total: totals.total,
+        mode
+      }
+    );
+  } catch (leaderboardError) {
+    console.warn("Leaderboard sync failed for test result:", leaderboardError);
+  }
 }
 
 

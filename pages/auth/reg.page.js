@@ -1,5 +1,8 @@
 ﻿import { auth, rtdb } from "/elements/firebase.js";
 
+import { syncLeaderboardProfile } from "/pages/elements/leaderboard.sync.js";
+import { clearAuthHint, writeAuthHint } from "/pages/elements/auth.session.js";
+
 import {
   onAuthStateChanged,
   setPersistence,
@@ -109,6 +112,12 @@ const forgotLink = document.getElementById("forgotLink");
 const altAuthLink = document.getElementById("altAuthLink");
 
 const form = document.querySelector(".registration-form");
+const pageParams = new URLSearchParams(window.location.search);
+const initialLoginMode =
+  pageParams.get("mode") === "login" ||
+  pageParams.get("login") === "1" ||
+  pageParams.get("forgot") === "1";
+const requestedPasswordHelp = pageParams.get("forgot") === "1";
 
 document.documentElement.style.cursor = "progress";
 
@@ -199,6 +208,7 @@ async function ensureStudentRecord(user, profilePatch = {}) {
 
   const [pSnap, sSnap] = await Promise.all([get(profileRef), get(statsRef)]);
   const existingProfile = pSnap.exists() ? (pSnap.val() || {}) : null;
+  const existingStats = sSnap.exists() ? (sSnap.val() || {}) : null;
 
   const updates = {};
 
@@ -235,18 +245,59 @@ async function ensureStudentRecord(user, profilePatch = {}) {
     if (Object.keys(patch).length) updates.profile = patch;
   }
 
-  if (!sSnap.exists()) {
+  if (!existingStats) {
     updates.stats = {
       readingsCompleted: 0,
       listeningsCompleted: 0,
       wordsLearned: 0,
       lessonsCompleted: 0,
+      challengeXp: 0,
+      challengeBadges: 0,
+      challengesApproved: 0,
     };
+  } else {
+    const statsPatch = {};
+    const statKeys = [
+      "readingsCompleted",
+      "listeningsCompleted",
+      "wordsLearned",
+      "lessonsCompleted",
+      "challengeXp",
+      "challengeBadges",
+      "challengesApproved"
+    ];
+
+    for (const key of statKeys) {
+      if (existingStats[key] == null) statsPatch[key] = 0;
+    }
+
+    if (Object.keys(statsPatch).length) updates.stats = statsPatch;
   }
 
   if (Object.keys(updates).length) {
     await update(baseRef, updates);
   }
+
+  const mergedProfile = {
+    ...(existingProfile || {}),
+    ...(updates.profile || {}),
+    ...profilePatch,
+    name: profilePatch.name || updates.profile?.name || existingProfile?.name || user.displayName || "Student",
+    group_name:
+      profilePatch.group_name ||
+      profilePatch.group ||
+      updates.profile?.group_name ||
+      updates.profile?.group ||
+      existingProfile?.group_name ||
+      existingProfile?.group ||
+      "Ungrouped"
+  };
+  const mergedStats = {
+    ...(existingStats || {}),
+    ...(updates.stats || {})
+  };
+
+  await syncLeaderboardProfile(rtdb, uid, mergedProfile, mergedStats);
 }
 
 
@@ -498,6 +549,12 @@ googleBtn?.addEventListener("click", async () => {
         group_name: selectedGroup,
         group: selectedGroup,
       });
+      writeAuthHint(user, {
+        name: fullName,
+        email: user.email || "",
+        group_name: selectedGroup,
+        group: selectedGroup,
+      });
 
       
       try {
@@ -515,6 +572,7 @@ googleBtn?.addEventListener("click", async () => {
     } else {
       
       await ensureStudentRecord(user, { email: user.email || "" });
+      writeAuthHint(user, { email: user.email || "" });
     }
 
     Toast.show("Signed in with Google ✅", "s");
@@ -534,13 +592,30 @@ async function initAuthGuard() {
   onAuthStateChanged(auth, (user) => {
     document.documentElement.style.cursor = "";
 
+    if (user) {
+      writeAuthHint(user);
+    } else if (!isSubmitting) {
+      clearAuthHint();
+    }
+
     
     if (user && !isSubmitting) {
       goAfterAuth("/pages/home/home page.html");
       return;
     }
 
-    if (!user) setMode(false); 
+    if (!user) {
+      setMode(initialLoginMode);
+
+      if (requestedPasswordHelp) {
+        Toast.show(
+          "Password recovery is not set up yet. Please sign in with your existing password or contact the admin.",
+          "i",
+          5200
+        );
+        usernameInput?.focus();
+      }
+    }
   });
 }
 

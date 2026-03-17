@@ -3,6 +3,7 @@ const nextConfig = {
   basePath: "/app",
   output: "export",
   reactStrictMode: true,
+  compress: true,
   poweredByHeader: false,
   trailingSlash: true,
   images: {

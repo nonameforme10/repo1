@@ -1321,7 +1321,7 @@ footer {
     background-position: 50% 40%;
     background-repeat: no-repeat;
     padding: 80px 5%;
-    min-height: calc(100vh - 150px);
+    min-height: calc(80vh - 150px);
     display: flex;
     flex-direction: column;
     justify-content: center;

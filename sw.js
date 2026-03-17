@@ -1,203 +1,240 @@
-﻿
-"use strict";
+﻿"use strict";
 
-const CACHE_VERSION = "v5.4.1.3";
-const CACHE_NAME = `eduventure-cache-${CACHE_VERSION}`;
+const IS_SERVICE_WORKER_CONTEXT =
+  typeof ServiceWorkerGlobalScope !== "undefined" &&
+  self instanceof ServiceWorkerGlobalScope;
 
-const SCOPE = self.registration ? self.registration.scope : self.location.origin + '/';
+if (IS_SERVICE_WORKER_CONTEXT) {
+  const VERSION = "v9.2.0";
+  const CORE_CACHE = `eduventure-core-${VERSION}`;
+  const RUNTIME_CACHE = `eduventure-runtime-${VERSION}`;
+  const MAX_RUNTIME_ENTRIES = 120;
+  const MAX_CACHED_RESPONSE_BYTES = 1_500_000;
 
-const u = (path) => new URL(path, SCOPE).toString();
-const uniq = (arr) => Array.from(new Set(arr));
+  const SCOPE = self.registration ? self.registration.scope : self.location.origin + "/";
+  const abs = (path) => new URL(path, SCOPE).toString();
 
-const OFFLINE_FALLBACK = u("index.html");
+  const OFFLINE_FALLBACK = abs("index.html");
+  const CORE_ASSETS = [
+    abs("./"),
+    abs("index.html"),
+    abs("style.css"),
+    abs("script.js"),
+    abs("favicon.png"),
+    abs("ping.txt"),
+  ];
 
-function buildReadingHtmlUrls({ testCount = 10, passCount = 3 } = {}) {
-  const urls = [];
-  for (let t = 1; t <= testCount; t++) {
-    for (let p = 1; p <= passCount; p++) {
-      urls.push(u(`reading/test${t}/pass${p}/pass${p}.html`));
-    }
+  const STATIC_DESTINATIONS = new Set(["script", "style", "image", "font", "manifest"]);
+  const STATIC_EXT_RE =
+    /\.(?:css|js|mjs|png|jpe?g|gif|webp|svg|ico|woff2?|ttf|eot|json|webmanifest|txt)$/i;
+  const AUTH_NETWORK_ONLY_PREFIXES = ["/pages/auth/", "/auth/", "/__/auth/"];
+  const AUTH_NETWORK_ONLY_PATHS = new Set([
+    "/elements/firebase.js",
+    "/sw.js",
+    "/pages/home/sw.js",
+  ]);
+
+  function isAuthCriticalPath(url) {
+    const pathname = url.pathname || "/";
+    if (AUTH_NETWORK_ONLY_PATHS.has(pathname)) return true;
+    return AUTH_NETWORK_ONLY_PREFIXES.some((prefix) => pathname.startsWith(prefix));
   }
-  return urls;
-}
 
-function buildListeningHtmlUrls({ testCount = 10, secCount = 4 } = {}) {
-  const urls = [];
-  for (let t = 1; t <= testCount; t++) {
-    for (let s = 1; s <= secCount; s++) {
-      urls.push(u(`listening/test${t}/sec${s}/sec${s}.html`));
-      urls.push(u(`listenings/test${t}/sec${s}/sec${s}.html`));
-    }
+  function isNetworkOnlyRequest(request, url) {
+    return (
+      isAuthCriticalPath(url) ||
+      request.cache === "no-store" ||
+      url.searchParams.has("sw-network-only") ||
+      request.headers.get("x-sw-network-only") === "1"
+    );
   }
-  return urls;
-}
 
-const ASSETS = uniq([
-  u("./"),
-  u("index.html"),
-  u("/favicon.ico"),        
-  u("site.webmanifest"),  
-  u("script-internet-checker.js"),
-  u("pages/home/home page.html"),
-  u("pages/study_materials/study_materials.html"),
-  u("pages/study_materials/bridge.html"),
-  u("pages/chat/global.chat.html"),
-]);
+  function isCacheableResponse(request, response, url) {
+    if (!response || response.status !== 200) return false;
+    if (url.origin !== self.location.origin) return false;
+    if (request.destination === "audio" || request.destination === "video") return false;
 
+    const cacheControl = (response.headers.get("cache-control") || "").toLowerCase();
+    if (cacheControl.includes("no-store") || cacheControl.includes("private")) return false;
 
-function isFirebaseApi(url) {
-  const h = url.hostname;
-  return (
-    h.includes("firebaseio.com") ||
-    h.includes("firebasedatabase.app") ||
-    (h.includes("googleapis.com") &&
-      (url.pathname.includes("identitytoolkit") ||
-        url.pathname.includes("securetoken") ||
-        url.pathname.includes("/firebaseinstallations/")))
-  );
-}
+    const contentLength = Number(response.headers.get("content-length") || "0");
+    if (Number.isFinite(contentLength) && contentLength > MAX_CACHED_RESPONSE_BYTES) return false;
 
-async function addAllSafe(cache, urls) {
-  for (const url of urls) {
-    try {
-      const res = await fetch(new Request(url, { cache: "reload" }));
-      if (res && res.ok) {
-        await cache.put(url, res.clone());
-      }
-    } catch (err) {
-      console.warn(`Failed to cache ${url}:`, err.message);
-    }
+    if (request.mode !== "navigate" && url.search) return false;
+
+    return true;
   }
-}
 
-self.addEventListener("install", (e) => {
-  console.log('[SW] Install event');
-  e.waitUntil(
-    (async () => {
+  async function trimRuntimeCache() {
+    const cache = await caches.open(RUNTIME_CACHE);
+    const keys = await cache.keys();
+    if (keys.length <= MAX_RUNTIME_ENTRIES) return;
+
+    const removals = keys.slice(0, keys.length - MAX_RUNTIME_ENTRIES).map((key) => cache.delete(key));
+    await Promise.all(removals);
+  }
+
+  async function putRuntime(request, response) {
+    const cache = await caches.open(RUNTIME_CACHE);
+    await cache.put(request, response);
+    await trimRuntimeCache();
+  }
+
+  async function addAllSafe(cache, urls) {
+    for (const url of urls) {
       try {
-        const cache = await caches.open(CACHE_NAME);
-        
-        await addAllSafe(cache, ASSETS);
-        
-        try {
-          const res = await fetch(new Request(OFFLINE_FALLBACK, { cache: "reload" }));
-          if (res && res.ok) {
-            await cache.put(OFFLINE_FALLBACK, res.clone());
-          }
-        } catch (err) {
-          console.warn('[SW] Failed to cache offline fallback:', err.message);
+        const response = await fetch(new Request(url, { cache: "reload" }));
+        if (response && response.ok) {
+          await cache.put(url, response.clone());
         }
-        
-        self.skipWaiting();
-      } catch (err) {
-        console.error('[SW] Install failed:', err);
-      }
-    })()
-  );
-});
+      } catch {}
+    }
+  }
 
-self.addEventListener("activate", (event) => {
-  console.log('[SW] Activate event');
-  event.waitUntil(
-    (async () => {
-      try {
+  self.addEventListener("install", (event) => {
+    event.waitUntil(
+      (async () => {
+        const cache = await caches.open(CORE_CACHE);
+        await addAllSafe(cache, CORE_ASSETS);
+        self.skipWaiting();
+      })()
+    );
+  });
+
+  self.addEventListener("activate", (event) => {
+    event.waitUntil(
+      (async () => {
         if (self.registration.navigationPreload) {
           try {
             await self.registration.navigationPreload.enable();
-          } catch (err) {
-            console.warn('[SW] Navigation preload failed:', err.message);
-          }
+          } catch {}
         }
-        
-        const cacheNames = await caches.keys();
+
+        const names = await caches.keys();
         await Promise.all(
-          cacheNames.map((cache) => {
-            if (cache !== CACHE_NAME) {
-              console.log('[SW] Deleting old cache:', cache);
-              return caches.delete(cache);
+          names.map((name) => {
+            if (
+              (
+                name.startsWith("eduventure-core-") ||
+                name.startsWith("eduventure-runtime-") ||
+                name.startsWith("eduventure-cache-")
+              ) &&
+              name !== CORE_CACHE &&
+              name !== RUNTIME_CACHE
+            ) {
+              return caches.delete(name);
             }
+            return null;
           })
         );
-        
+
         await self.clients.claim();
-      } catch (err) {
-        console.error('[SW] Activate failed:', err);
+      })()
+    );
+  });
+
+  async function handleNavigation(event) {
+    const request = event.request;
+
+    try {
+      const preload = await event.preloadResponse;
+      if (preload) {
+        const preloadUrl = new URL(request.url);
+        if (isCacheableResponse(request, preload, preloadUrl)) {
+          event.waitUntil(putRuntime(request, preload.clone()));
+        }
+        return preload;
       }
-    })()
-  );
-});
 
-self.addEventListener("fetch", (event) => {
-  const req = event.request;
-  if (req.method !== "GET") return;
+      const network = await fetch(request);
+      const networkUrl = new URL(request.url);
+      if (isCacheableResponse(request, network, networkUrl)) {
+        event.waitUntil(putRuntime(request, network.clone()));
+      }
+      return network;
+    } catch {
+      const cached = await caches.match(request);
+      if (cached) return cached;
 
-  const url = new URL(req.url);
+      const fallback = await caches.match(OFFLINE_FALLBACK);
+      if (fallback) return fallback;
 
-  if (isFirebaseApi(url)) return;
-
-  if (url.pathname.endsWith("/ping.txt")) {
-    event.respondWith(
-      fetch(new Request(req, { cache: "no-store" }))
-        .catch(() => new Response("", { status: 503 }))
-    );
-    return;
+      return new Response("Offline", {
+        status: 503,
+        headers: { "content-type": "text/plain; charset=utf-8" },
+      });
+    }
   }
 
-  const networkOnly =
-    req.cache === "no-store" ||
-    url.searchParams.has("sw-network-only") ||
-    req.headers.get("x-sw-network-only") === "1";
+  async function handleStatic(event) {
+    const request = event.request;
+    const cached = await caches.match(request);
 
-  if (networkOnly) {
-    event.respondWith(
-      fetch(req).catch(() => new Response("", { status: 503 }))
-    );
-    return;
-  }
-
-  event.respondWith(
-    fetch(req)
-      .then((networkResponse) => {
-        if (networkResponse && networkResponse.status === 200) {
-          const responseClone = networkResponse.clone();
-          event.waitUntil(
-            caches.open(CACHE_NAME)
-              .then((cache) => cache.put(req, responseClone))
-              .catch((err) => {
-                console.warn('[SW] Cache put failed:', err.message);
-              })
-          );
+    const networkPromise = fetch(request)
+      .then(async (response) => {
+        const url = new URL(request.url);
+        if (isCacheableResponse(request, response, url)) {
+          event.waitUntil(putRuntime(request, response.clone()));
         }
-        return networkResponse;
+        return response;
       })
-      .catch(async () => {
-        const cachedResponse = await caches.match(req);
-        if (cachedResponse) return cachedResponse;
+      .catch(() => null);
 
-        if (req.mode === "navigate") {
-          const fallback = await caches.match(OFFLINE_FALLBACK);
-          if (fallback) return fallback;
-        }
+    if (cached) {
+      event.waitUntil(networkPromise);
+      return cached;
+    }
 
-        return new Response("Offline", {
-          status: 503,
-          headers: { "Content-Type": "text/plain; charset=utf-8" },
-        });
-      })
-  );
-});
+    const network = await networkPromise;
+    if (network) return network;
 
-self.addEventListener("message", (event) => {
-  const data = event.data;
-
-  if (data && (data.action === "skipWaiting" || data.type === "SKIP_WAITING")) {
-    console.log('[SW] Skip waiting received');
-    self.skipWaiting();
-    return;
+    return new Response("Offline", {
+      status: 503,
+      headers: { "content-type": "text/plain; charset=utf-8" },
+    });
   }
 
-  if (data === "SKIP_WAITING") {
-    console.log('[SW] Skip waiting received');
-    self.skipWaiting();
-  }
-});
+  self.addEventListener("fetch", (event) => {
+    const request = event.request;
+    if (request.method !== "GET") return;
+
+    const url = new URL(request.url);
+
+    if (url.origin !== self.location.origin) return;
+
+    if (url.pathname.endsWith("/ping.txt")) {
+      event.respondWith(
+        fetch(new Request(request, { cache: "no-store" })).catch(
+          () => new Response("", { status: 503 })
+        )
+      );
+      return;
+    }
+
+    if (isNetworkOnlyRequest(request, url)) {
+      event.respondWith(fetch(request).catch(() => new Response("", { status: 503 })));
+      return;
+    }
+
+    if (request.mode === "navigate") {
+      event.respondWith(handleNavigation(event));
+      return;
+    }
+
+    if (STATIC_DESTINATIONS.has(request.destination) || STATIC_EXT_RE.test(url.pathname)) {
+      event.respondWith(handleStatic(event));
+      return;
+    }
+  });
+
+  self.addEventListener("message", (event) => {
+    const data = event.data;
+    if (data && (data.action === "skipWaiting" || data.type === "SKIP_WAITING")) {
+      self.skipWaiting();
+      return;
+    }
+    if (data === "SKIP_WAITING") {
+      self.skipWaiting();
+    }
+  });
+}

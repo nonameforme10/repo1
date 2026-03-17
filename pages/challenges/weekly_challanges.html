@@ -3,39 +3,39 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EduVenture</title>
+    <title>EduVenture | Weekly Challenges</title>
     <script src="https://unpkg.com/lucide@latest"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/pages/elements/style.css">
-<link rel="icon" href="/favicon.png">
-<script src="/assets/UI.js" defer></script>
+    <link rel="stylesheet" href="/pages/challenges/weekly_challanges.css">
+    <link rel="icon" href="/favicon.png">
 </head>
-<body>
+<body class="challenges-page" data-club="english">
     <div class="overlay" id="overlay"></div>
     <div class="sidebar" id="sidebar">
-        <button class="sidebar-close" id="closeMenu">
+        <button class="sidebar-close" id="closeMenu" aria-label="Close menu">
             <i data-lucide="x" size="32"></i>
         </button>
         <a href="/pages/home/home page.html"><i data-lucide="home"></i><span>Home</span></a>
         <a href="/pages/study_materials/study_materials.html"><i data-lucide="book-open"></i><span>Study Materials</span></a>
         <a class="nav-a" href="/pages/chat/global.chat.html"><i data-lucide="messages-square"></i><span>Global Chat</span></a>
         <a href="/pages/games/games.html"><i data-lucide="joystick"></i><span>Games</span></a>
-        <a id="nav-active-page" href="/pages/challenges/weekly_challanges.html"><i data-lucide="star"></i><span>Weekly challanges</span></a>
+        <a id="nav-active-page" href="/pages/challenges/weekly_challanges.html"><i data-lucide="star"></i><span>Weekly challenges</span></a>
     </div>
-    
+
     <header>
         <div class="top-bar">
             <div class="top-bar-left">
                 <div class="dot"></div>
-                <p>
-                    Free learning resources available | Student community support 24/7
-                </p>
+                <p>Free learning resources available | Student community support 24/7</p>
             </div>
         </div>
 
         <nav class="nav-main">
             <div class="logo-section" onclick="location.href='/pages/home/home page.html'">
-                <img style="cursor: pointer;" src="/assets/logo.png" alt="icon" class="icon-box">
+                <img style="cursor: pointer;" src="/assets/logo.png" alt="EduVenture logo" class="icon-box">
                 <div style="cursor: pointer;" class="logo-text">
                     <h1><span style="color: #ffffff;">EDU</span><span style="color: #fbbf24;">VENTURE</span></h1>
                     <p>PREMIUM LEARNING</p>
@@ -52,28 +52,261 @@
                     Profile
                 </a>
 
-                <button class="mobile-hamburger" id="openMenu">
+                <button class="mobile-hamburger" id="openMenu" aria-label="Open menu">
                     <i data-lucide="menu" size="28"></i>
                 </button>
             </div>
         </nav>
 
         <div class="nav-bottom">
-            <a class="nav-a" href="/pages/home/home page.html"><i data-lucide="home"></i><span>Home</span></a>            
+            <a class="nav-a" href="/pages/home/home page.html"><i data-lucide="home"></i><span>Home</span></a>
             <a class="nav-a" href="/pages/study_materials/study_materials.html"><i data-lucide="book-open"></i><span>Study Materials</span></a>
             <a class="nav-a" href="/pages/chat/global.chat.html"><i data-lucide="messages-square"></i><span>Global Chat</span></a>
             <a class="nav-a" href="/pages/games/games.html"><i data-lucide="joystick"></i><span>Games</span></a>
-            <a class="nav-a" id="nav-active-page" href="/pages/challenges/weekly_challanges.html"><i data-lucide="star"></i><span>Weekly challanges</span></a>
+            <a class="nav-a" id="nav-active-page" href="/pages/challenges/weekly_challanges.html"><i data-lucide="star"></i><span>Weekly challenges</span></a>
         </div>
     </header>
-    <div class="content-container">
-        <img 
-            src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExZjhicjhkYnJ4NXhyeTVobTZ2cW9vYW15d3p5ZTJ0bTkyM2ZzdWljYSZlcD12MV9zdGlja2Vyc19zZWFyY2gmY3Q9cw/k1xA4WSR0EqGRATxKI/giphy.gif" 
-            alt="Coming Soon Mascot" 
-            class="gif-video"
-        >
-        <h2 style="color: #1f2937; text-align: center; margin-top: 20px;">Coming in the future</h2>
+
+    <main class="weekly-shell">
+        <section class="sprint-hero" aria-label="Challenge overview">
+            <div class="hero-copy">
+                <p class="hero-kicker">Weekly Sprint Board</p>
+                <h2>Build momentum with focused goals each week</h2>
+                <p class="hero-text">Open a challenge, track requirements, submit proof, and get feedback in one workflow.</p>
+                <div class="hero-role-chip">
+                    <span class="chip-label">Current role</span>
+                    <strong id="heroRoleText">Guest</strong>
+                </div>
+            </div>
+
+            <div class="hero-metrics">
+                <article class="metric-tile">
+                    <p>Total challenges</p>
+                    <strong id="heroChallengeCount">0</strong>
+                </article>
+                <article class="metric-tile">
+                    <p>Open now</p>
+                    <strong id="heroOpenCount">0</strong>
+                </article>
+                <article class="metric-tile stretch">
+                    <p>Board note</p>
+                    <div id="heroNote" class="hero-note">
+                        Browse challenges freely. Login is only required for proof submissions and comments.
+                    </div>
+                </article>
+            </div>
+        </section>
+
+        <section class="board-layout">
+            <aside class="board-column panel-card">
+                <div class="board-head">
+                    <div>
+                        <p class="panel-eyebrow">Challenge feed</p>
+                        <h3>Weekly challenges</h3>
+                    </div>
+                    <p id="challengeListState" class="panel-note">Loading challenge board...</p>
+                </div>
+
+                <label class="search-box" for="challengeSearch">
+                    <i data-lucide="search" size="18"></i>
+                    <input id="challengeSearch" type="search" placeholder="Search challenge title or summary">
+                </label>
+
+                <div id="challengeList" class="challenge-list" aria-label="Challenge list"></div>
+            </aside>
+
+            <section class="detail-column panel-card">
+                <div id="challengeEmpty" class="challenge-empty">
+                    <div class="empty-badge">Ready</div>
+                    <h2>Select a challenge</h2>
+                    <p>Pick any item from the left to view overview, requirements, proof checker, and comments.</p>
+                </div>
+
+                <article id="challengeDetail" class="challenge-detail hidden" aria-live="polite">
+                    <div class="challenge-detail-head">
+                        <div class="challenge-head-copy">
+                            <div class="challenge-head-top">
+                                <span id="challengeStatusBadge" class="status-badge">Active</span>
+                                <span id="challengeDueBadge" class="status-badge soft hidden"></span>
+                            </div>
+                            <h2 id="challengeTitle">Challenge title</h2>
+                            <p id="challengeSummary" class="challenge-summary"></p>
+                        </div>
+                        <button id="challengeDeleteBtn" class="ghost-btn danger hidden" type="button">Delete challenge</button>
+                    </div>
+
+                    <div class="challenge-kpis">
+                        <div class="kpi-card">
+                            <span class="kpi-label">Reward</span>
+                            <strong id="challengeReward">Not set</strong>
+                        </div>
+                        <div class="kpi-card">
+                            <span class="kpi-label">Requirements</span>
+                            <strong id="challengeRequirementCount">0</strong>
+                        </div>
+                        <div class="kpi-card">
+                            <span class="kpi-label">Proofs submitted</span>
+                            <strong id="challengeSubmissionCount">0</strong>
+                        </div>
+                        <div class="kpi-card">
+                            <span class="kpi-label">Approved</span>
+                            <strong id="challengeApprovedCount">0</strong>
+                        </div>
+                    </div>
+
+                    <div class="challenge-tabs" role="tablist">
+                        <button class="challenge-tab active" type="button" data-target="overviewPanel" role="tab" aria-selected="true">Overview</button>
+                        <button class="challenge-tab" type="button" data-target="requirementsPanel" role="tab" aria-selected="false">Requirements</button>
+                        <button class="challenge-tab" type="button" data-target="proofPanel" role="tab" aria-selected="false">Proof checker</button>
+                        <button class="challenge-tab" type="button" data-target="commentsPanel" role="tab" aria-selected="false">Comments</button>
+                    </div>
+
+                    <section id="overviewPanel" class="challenge-tab-panel active" role="tabpanel">
+                        <div class="section-card">
+                            <h3>Challenge brief</h3>
+                            <div id="challengeNotes" class="rich-copy"></div>
+                        </div>
+                    </section>
+
+                    <section id="requirementsPanel" class="challenge-tab-panel" role="tabpanel">
+                        <div class="section-card">
+                            <h3>Requirements</h3>
+                            <div id="challengeRequirements" class="requirement-list"></div>
+                        </div>
+                    </section>
+
+                    <section id="proofPanel" class="challenge-tab-panel" role="tabpanel">
+                        <div class="section-card">
+                            <div class="section-head">
+                                <div>
+                                    <h3>Proof checker</h3>
+                                    <p id="proofGuideText" class="section-subcopy"></p>
+                                </div>
+                            </div>
+
+                            <div id="proofAuthState" class="muted-line"></div>
+
+                            <label class="label" for="proofText">What did you complete?</label>
+                            <textarea id="proofText" class="input-field tall" placeholder="Describe what you finished and how it matches the requirements."></textarea>
+
+                            <label class="label" for="proofUrl">Proof link</label>
+                            <input id="proofUrl" class="input-field" type="url" placeholder="https://drive.google.com/... or another proof link">
+
+                            <div class="form-actions">
+                                <button id="proofSubmitBtn" class="primary-btn" type="button">Submit proof</button>
+                                <button id="proofClearBtn" class="ghost-btn" type="button">Clear form</button>
+                            </div>
+
+                            <div id="myProofStatus" class="status-card"></div>
+                        </div>
+
+                        <div id="adminQueueControl" class="admin-queue-control hidden">
+                            <div>
+                                <p class="panel-eyebrow">Admin only</p>
+                                <h3>Proof review queue</h3>
+                                <p class="section-subcopy">Open the admin panel to review pending student submissions.</p>
+                            </div>
+                            <div class="admin-queue-actions">
+                                <span id="adminProofPendingBadge" class="status-pill pending">0 pending</span>
+                                <button id="openAdminProofPanelBtn" class="primary-btn" type="button">Open admin panel</button>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section id="commentsPanel" class="challenge-tab-panel" role="tabpanel">
+                        <div class="section-card">
+                            <h3>Comments</h3>
+                            <div id="commentAuthState" class="muted-line"></div>
+
+                            <textarea id="commentText" class="input-field tall" placeholder="Share updates, questions, or clarifications."></textarea>
+
+                            <div class="form-actions">
+                                <button id="commentSendBtn" class="primary-btn" type="button">Send comment</button>
+                            </div>
+
+                            <div id="commentList" class="stack-list"></div>
+                        </div>
+                    </section>
+                </article>
+            </section>
+        </section>
+    </main>
+
+    <div id="challengeModal" class="challenge-modal-overlay" aria-hidden="true">
+        <div class="challenge-modal" role="dialog" aria-modal="true" aria-labelledby="challengeModalTitle">
+            <div class="challenge-modal-head">
+                <div>
+                    <p class="panel-eyebrow">Admin only</p>
+                    <h2 id="challengeModalTitle">Publish weekly challenge</h2>
+                </div>
+                <button id="challengeModalClose" class="icon-btn" type="button" aria-label="Close modal">
+                    <i data-lucide="x" size="18"></i>
+                </button>
+            </div>
+
+            <label class="label" for="challengeTitleInput">Challenge title</label>
+            <input id="challengeTitleInput" class="input-field" type="text" placeholder="Example: Speak English for 20 minutes every day">
+
+            <label class="label" for="challengeSummaryInput">Summary</label>
+            <textarea id="challengeSummaryInput" class="input-field tall" placeholder="State the goal, weekly target, and what students should focus on."></textarea>
+
+            <div class="modal-grid">
+                <div>
+                    <label class="label" for="challengeRewardInput">Reward or badge</label>
+                    <input id="challengeRewardInput" class="input-field" type="text" placeholder="Example: Journalist badge">
+                </div>
+                <div>
+                    <label class="label" for="challengeXpRewardInput">XP reward</label>
+                    <input id="challengeXpRewardInput" class="input-field" type="number" min="0" step="1" placeholder="20">
+                </div>
+                <div>
+                    <label class="label" for="challengeDueDateInput">Deadline</label>
+                    <input id="challengeDueDateInput" class="input-field" type="date">
+                </div>
+            </div>
+
+            <div class="modal-row">
+                <label class="label">Requirements</label>
+                <button id="addRequirementBtn" class="mini-btn" type="button">Add requirement</button>
+            </div>
+            <div id="requirementFields" class="requirement-editor"></div>
+
+            <label class="label" for="challengeProofGuideInput">Proof checker instructions</label>
+            <textarea id="challengeProofGuideInput" class="input-field tall" placeholder="Tell students what proof they must submit and how it will be checked."></textarea>
+
+            <label class="label" for="challengeNotesInput">Extra notes</label>
+            <textarea id="challengeNotesInput" class="input-field tall" placeholder="Optional reminders, tips, or judging notes."></textarea>
+
+            <div class="form-actions">
+                <button id="challengeSaveBtn" class="primary-btn" type="button">Publish challenge</button>
+                <button id="challengeClearBtn" class="ghost-btn" type="button">Clear</button>
+            </div>
+
+            <p id="challengeModalStatus" class="modal-status hidden"></p>
+        </div>
     </div>
+
+    <div id="adminProofModal" class="challenge-modal-overlay admin-proof-modal-overlay" aria-hidden="true">
+        <div class="challenge-modal admin-proof-modal" role="dialog" aria-modal="true" aria-labelledby="adminProofModalTitle">
+            <div class="challenge-modal-head">
+                <div>
+                    <p class="panel-eyebrow">Admin only</p>
+                    <h2 id="adminProofModalTitle">Proof review queue</h2>
+                    <p id="adminProofModalSubtitle" class="section-subcopy">Pending submissions for the selected challenge.</p>
+                </div>
+                <button id="adminProofModalClose" class="icon-btn" type="button" aria-label="Close admin proof panel">
+                    <i data-lucide="x" size="18"></i>
+                </button>
+            </div>
+
+            <div class="admin-proof-modal-toolbar">
+                <span id="adminProofModalCount" class="status-pill pending">0 pending</span>
+            </div>
+
+            <div id="adminProofList" class="stack-list admin-proof-list"></div>
+        </div>
+    </div>
+
     <footer>
     <div class="footer-container">
         <div class="footer-el">
@@ -124,15 +357,15 @@
         </div>
     </div>
     <div class="footer-bottom">
-        <p style="text-align: center; font-size: small;">© 2026 Eduventure Learning. All rights reserved.</p>
+        <p style="text-align: center; font-size: small;">&copy; 2026 Eduventure Learning. All rights reserved.</p>
     </div>
-</footer>
+    </footer>
+
+
+    <div id="toastZone" class="toast-zone" aria-live="polite" aria-atomic="true"></div>
+
     <script src="/elements/UI.js"></script>
     <script src="/pages/elements/script.js"></script>
-    </script>
-<script src="/sw.js"></script>
+    <script type="module" src="/pages/challenges/weekly_challanges.page.js"></script>
 </body>
 </html>
-
-
-

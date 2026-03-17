@@ -115,12 +115,6 @@ setupSmartBack();
 authReady.then(() => { if (auth.currentUser) loadAnswerKey().catch(() => {}); });
 authReady.then(() => { if (auth.currentUser) syncReadingToFirebase().catch(() => {}); });
 
-try {
-  if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("/sw.js").catch(() => {});
-  }
-} catch {}
-
 const MODE = "reading";
 
 function _bridgeKey(suffix) {

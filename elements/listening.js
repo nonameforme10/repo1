@@ -110,12 +110,6 @@ authReady.then(() => {
   if (auth.currentUser) loadAnswerKey().catch(() => {});
 });
 
-try {
-  if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("/sw.js").catch(() => {});
-  }
-} catch {}
-
 const MODE = "listening";
 
 function _bridgeKey(suffix) {

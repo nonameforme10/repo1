@@ -1,13 +1,18 @@
+import "./globals.css";
+
 export const metadata = {
-  title: "EduVenture | Welcome",
-  icons: {
-    icon: "/favicon.png"
-  }
+  title: {
+    default: "EduVenture",
+    template: "%s | EduVenture",
+  },
+  description: "Resilient Next.js launchpad for the EduVenture learning workspace.",
+  applicationName: "EduVenture",
 };
 
 export const viewport = {
   width: "device-width",
-  initialScale: 1
+  initialScale: 1,
+  themeColor: "#0e1528",
 };
 
 export default function RootLayout({ children }) {

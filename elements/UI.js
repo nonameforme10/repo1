@@ -205,8 +205,10 @@
   if (window.__EDUVENTURE_SW_REG_DONE) return;
   window.__EDUVENTURE_SW_REG_DONE = true;
 
-  const LOG = true;
-  const CHECK_EVERY_MIN = 10;
+  const LOG = false;
+  const UPDATE_CHECK_EVERY_MIN = 30;
+  const SW_URL = "/sw.js";
+  const SW_SCOPE = "/";
 
   const log = (...a) => LOG && console.log("[SW-REG]", ...a);
   const warn = (...a) => LOG && console.warn("[SW-REG]", ...a);
@@ -215,6 +217,10 @@
     location.hostname === "localhost" ||
     location.hostname === "127.0.0.1" ||
     location.hostname === "[::1]";
+  const isAuthRoute =
+    location.pathname.startsWith("/pages/auth/") ||
+    location.pathname.startsWith("/auth/") ||
+    location.pathname.startsWith("/__/auth/");
 
   if (!("serviceWorker" in navigator)) {
     warn("Service workers not supported in this browser.");
@@ -226,56 +232,17 @@
     return;
   }
 
-  async function findSwUrl() {
-    const candidates = [
-      "/sw.js",
-      "./sw.js",
-      "../sw.js",
-      "../../sw.js",
-      "../../../sw.js",
-      "../../../../sw.js",
-    ];
-
-    for (const p of candidates) {
-      try {
-        const url = new URL(p, location.href).toString();
-        const res = await fetch(url, { cache: "no-store" });
-        if (res.ok) {
-          return url;
-        }
-      } catch (_) {}
-    }
-
-    return null;
-  }
-
-  function computeScopeFromSwUrl(swUrl) {
-    try {
-      const u = new URL(swUrl);
-      const scopePath = u.pathname.replace(/[^/]*$/, "");
-      return scopePath || "/";
-    } catch {
-      return "/";
-    }
+  if (isAuthRoute) {
+    log("Skipping SW registration on auth route.");
+    return;
   }
 
   async function register() {
-    const swUrl = await findSwUrl();
-    if (!swUrl) {
-      warn(
-        "Could not locate sw.js. Make sure sw.js is deployed (ideally at site root: /sw.js)."
-      );
-      return;
-    }
-
-    const scope = computeScopeFromSwUrl(swUrl);
-
     try {
-      const reg = await navigator.serviceWorker.register(swUrl, { scope });
+      const reg = await navigator.serviceWorker.register(SW_URL, { scope: SW_SCOPE });
 
       if (reg.waiting) {
-        log("Update waiting → telling it to SKIP_WAITING");
-        reg.waiting.postMessage({ type: "SKIP_WAITING" });
+        log("SW update is waiting and will activate on a later navigation.");
       }
 
       reg.addEventListener("updatefound", () => {
@@ -284,8 +251,7 @@
         sw.addEventListener("statechange", () => {
           if (sw.state === "installed") {
             if (navigator.serviceWorker.controller) {
-              log("New SW installed → SKIP_WAITING");
-              sw.postMessage({ type: "SKIP_WAITING" });
+              log("SW update installed. Keeping current session alive until next navigation.");
             } else {
               log("SW installed for first time.");
             }
@@ -293,24 +259,13 @@
         });
       });
 
-      let refreshed = false;
-      navigator.serviceWorker.addEventListener("controllerchange", () => {
-        if (refreshed) return;
-        refreshed = true;
-        log("Controller changed → reloading page once.");
-        location.reload();
-      });
-
-      if (CHECK_EVERY_MIN > 0) {
+      if (UPDATE_CHECK_EVERY_MIN > 0) {
         setInterval(() => {
           reg.update().catch(() => {});
-        }, CHECK_EVERY_MIN * 60 * 1000);
+        }, UPDATE_CHECK_EVERY_MIN * 60 * 1000);
       }
     } catch (err) {
       warn("Registration failed:", err);
-      warn(
-        "Common causes: sw.js not at the expected path, wrong MIME type, or hosting config blocks it."
-      );
     }
   }
 
@@ -329,14 +284,29 @@
 
   const CHECKER_SRC = "/script-internet-checker.js";
 
-  const already = [...document.scripts].some(s => (s.src || "").includes(CHECKER_SRC));
-  if (already) return;
+  function injectChecker() {
+    const already = [...document.scripts].some((s) => (s.src || "").includes(CHECKER_SRC));
+    if (already) return;
 
-  const s = document.createElement("script");
-  s.src = CHECKER_SRC + (CHECKER_SRC.includes("?") ? "&" : "?") + "v=" + Date.now();
-  s.defer = true;
+    const s = document.createElement("script");
+    s.src = CHECKER_SRC;
+    s.defer = true;
+    (document.head || document.documentElement).appendChild(s);
+  }
 
-  (document.head || document.documentElement).appendChild(s);
+  function scheduleCheckerLoad() {
+    if ("requestIdleCallback" in window) {
+      window.requestIdleCallback(() => injectChecker(), { timeout: 3000 });
+      return;
+    }
+    setTimeout(injectChecker, 1200);
+  }
+
+  if (document.readyState === "complete") {
+    scheduleCheckerLoad();
+  } else {
+    window.addEventListener("load", scheduleCheckerLoad, { once: true });
+  }
 })();
 
 (() => {

@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Redirecting to account recovery...</title>
+  <meta http-equiv="refresh" content="0; url=/pages/auth/reg.html?mode=login&forgot=1">
+</head>
+<body>
+  <script>
+    (function () {
+      const current = new URL(window.location.href);
+      const target = new URL("/pages/auth/reg.html", window.location.origin);
+
+      current.searchParams.forEach((value, key) => {
+        if (key === "mode" || key === "forgot") return;
+        target.searchParams.set(key, value);
+      });
+
+      target.searchParams.set("mode", "login");
+      target.searchParams.set("forgot", "1");
+      window.location.replace(target.toString());
+    })();
+  </script>
+  <p>Redirecting to account recovery...</p>
+</body>
+</html>

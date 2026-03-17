@@ -1,6 +1,7 @@
 
-
 import { auth, rtdb } from "/elements/firebase.js";
+import { syncLeaderboardProfile } from "/pages/elements/leaderboard.sync.js";
+import { clearAuthHint, writeAuthHint } from "/pages/elements/auth.session.js";
 
 import {
   onAuthStateChanged,
@@ -446,10 +447,21 @@ async function ensureStudentDoc(user) {
       listeningsCompleted: 0,
       wordsLearned: 0,
       lessonsCompleted: 0,
+      challengeXp: 0,
+      challengeBadges: 0,
+      challengesApproved: 0,
     };
   } else {
     const patch = {};
-    const keys = ["readingsCompleted", "listeningsCompleted", "wordsLearned", "lessonsCompleted"];
+    const keys = [
+      "readingsCompleted",
+      "listeningsCompleted",
+      "wordsLearned",
+      "lessonsCompleted",
+      "challengeXp",
+      "challengeBadges",
+      "challengesApproved"
+    ];
     for (const k of keys) if (stats[k] == null) patch[k] = 0;
     if (Object.keys(patch).length) toWrite[`students/${uid}/stats`] = patch;
   }
@@ -457,6 +469,19 @@ async function ensureStudentDoc(user) {
   if (Object.keys(toWrite).length) {
     await update(ref(rtdb), toWrite);
   }
+
+  const mergedProfile = {
+    ...(profile || {}),
+    ...(toWrite[`students/${uid}/profile`] || {}),
+    name: profile?.name || user.displayName || deriveNameFromEmail(email),
+    group_name: profile?.group_name || profile?.group || "Ungrouped"
+  };
+  const mergedStats = {
+    ...(stats || {}),
+    ...(toWrite[`students/${uid}/stats`] || {})
+  };
+
+  await syncLeaderboardProfile(rtdb, uid, mergedProfile, mergedStats);
 }
 
 async function loadStudentData(uid) {
@@ -489,6 +514,7 @@ async function refreshProgressAndHistory(uid) {
     cachedStats = derived;
     writeCachedStudent(uid);
     renderStats(cachedStats);
+    await syncLeaderboardProfile(rtdb, uid, cachedProfile || {}, cachedStats || {});
 
     
     scheduleStatsSync(uid, derived);
@@ -587,6 +613,8 @@ function renderStats(stats) {
   safeText($id("listeningsCompleted"), s.listeningsCompleted ?? 0);
   safeText($id("wordsLearned"), s.wordsLearned ?? 0);
   safeText($id("lessonsCompleted"), s.lessonsCompleted ?? 0);
+  safeText($id("challengeXp"), s.challengeXp ?? 0);
+  safeText($id("challengeBadges"), s.challengeBadges ?? 0);
 }
 
 
@@ -613,6 +641,7 @@ function bucketToCategory(bucket) {
   if (b.includes("read")) return "readings";
   if (b.includes("lesson")) return "lessons";
   if (b.includes("vocab") || b.includes("word")) return "vocab";
+  if (b.includes("challenge")) return "challenges";
   return "other";
 }
 
@@ -621,7 +650,16 @@ function bucketToIcon(bucket) {
   if (b.includes("listen")) return "headphones";
   if (b.includes("read")) return "book-open";
   if (b.includes("lesson")) return "presentation";
+  if (b.includes("challenge")) return "trophy";
   return "sparkles";
+}
+
+function challengeStatusLabel(status) {
+  const s = String(status || "").toLowerCase();
+  if (s === "approved") return "Approved";
+  if (s === "needs_work") return "Needs Work";
+  if (s === "rejected") return "Rejected";
+  return "Pending";
 }
 
 function buildHistoryEntries(progress) {
@@ -653,6 +691,38 @@ function buildHistoryEntries(progress) {
         whenMs: when,
       });
     }
+  }
+
+  const challenges = progress?.challenges || {};
+  for (const challengeId of Object.keys(challenges || {})) {
+    const entry = challenges?.[challengeId] || {};
+    const when =
+      Number(entry.updatedAtMs) ||
+      Number(entry.reviewedAtMs) ||
+      Number(entry.submittedAtMs) ||
+      0;
+
+    const status = String(entry.status || "pending").toLowerCase();
+    const xpAwarded = Math.max(0, Number(entry.xpAwarded || 0));
+    const badgeAwarded = !!entry.badgeAwarded;
+
+    out.push({
+      id: `weekly_challenges/${challengeId}`,
+      bucket: "weekly_challenges",
+      category: "challenges",
+      name: String(entry.challengeTitle || "Weekly challenge"),
+      completed: status === "approved",
+      opened: true,
+      attempts: Number(entry.submissionCount) || 0,
+      percent: NaN,
+      correct: NaN,
+      total: NaN,
+      difficulty: "",
+      whenMs: when,
+      challengeStatus: status,
+      xpAwarded,
+      badgeAwarded
+    });
   }
 
   out.sort((a, b) => (b.whenMs || 0) - (a.whenMs || 0));
@@ -702,7 +772,9 @@ function renderHistory(entries) {
 
     const status = document.createElement("span");
     status.className = "history-pill";
-    status.textContent = e.completed ? "Completed" : (e.opened ? "Opened" : "Started");
+    status.textContent = e.category === "challenges"
+      ? challengeStatusLabel(e.challengeStatus)
+      : (e.completed ? "Completed" : (e.opened ? "Opened" : "Started"));
 
     const bucketPill = document.createElement("span");
     bucketPill.className = "history-pill";
@@ -725,6 +797,20 @@ function renderHistory(entries) {
       meta.appendChild(a);
     }
 
+    if (e.category === "challenges" && Number(e.xpAwarded) > 0) {
+      const xp = document.createElement("span");
+      xp.className = "history-pill";
+      xp.textContent = `+${Number(e.xpAwarded)} XP`;
+      meta.appendChild(xp);
+    }
+
+    if (e.category === "challenges" && e.badgeAwarded) {
+      const badge = document.createElement("span");
+      badge.className = "history-pill";
+      badge.textContent = "Badge earned";
+      meta.appendChild(badge);
+    }
+
     main.appendChild(title);
     main.appendChild(meta);
 
@@ -737,9 +823,15 @@ function renderHistory(entries) {
     const hasPercent = Number.isFinite(e.percent);
     const hasCT = Number.isFinite(e.correct) && Number.isFinite(e.total) && e.total > 0;
 
-    if (hasPercent) score.textContent = `${Math.round(e.percent)}%`;
-    else if (hasCT) score.textContent = `${e.correct}/${e.total}`;
-    else score.textContent = "—";
+    if (e.category === "challenges") {
+      score.textContent = Number(e.xpAwarded) > 0 ? `+${Number(e.xpAwarded)} XP` : "—";
+    } else if (hasPercent) {
+      score.textContent = `${Math.round(e.percent)}%`;
+    } else if (hasCT) {
+      score.textContent = `${e.correct}/${e.total}`;
+    } else {
+      score.textContent = "—";
+    }
 
     const time = document.createElement("div");
     time.className = "history-time";
@@ -786,11 +878,29 @@ function deriveStatsFrom(progress, marksWords, currentStats) {
     }
   }
 
+  const challengeProgress = progress?.challenges || {};
+  let challengeXp = 0;
+  let challengeBadges = 0;
+  let challengesApproved = 0;
+  for (const challengeId of Object.keys(challengeProgress || {})) {
+    const entry = challengeProgress?.[challengeId] || {};
+    const status = String(entry.status || "").toLowerCase();
+    const xp = Math.max(0, Number(entry.xpAwarded || 0));
+    const hasBadge = !!entry.badgeAwarded;
+
+    challengeXp += xp;
+    if (hasBadge) challengeBadges += 1;
+    if (hasBadge || status === "approved") challengesApproved += 1;
+  }
+
   
   s.listeningsCompleted = Number.isFinite(listenings) ? listenings : (s.listeningsCompleted ?? 0);
   s.readingsCompleted = Number.isFinite(readings) ? readings : (s.readingsCompleted ?? 0);
   s.lessonsCompleted = Number.isFinite(lessons) ? lessons : (s.lessonsCompleted ?? 0);
   s.wordsLearned = Number.isFinite(wordsLearned) ? wordsLearned : (s.wordsLearned ?? 0);
+  s.challengeXp = Number.isFinite(challengeXp) ? challengeXp : (s.challengeXp ?? 0);
+  s.challengeBadges = Number.isFinite(challengeBadges) ? challengeBadges : (s.challengeBadges ?? 0);
+  s.challengesApproved = Number.isFinite(challengesApproved) ? challengesApproved : (s.challengesApproved ?? 0);
 
   return s;
 }
@@ -804,7 +914,15 @@ function scheduleStatsSync(uid, derivedStats) {
 
     const base = cachedStats || {};
     const patch = {};
-    const keys = ["readingsCompleted", "listeningsCompleted", "lessonsCompleted", "wordsLearned"];
+    const keys = [
+      "readingsCompleted",
+      "listeningsCompleted",
+      "lessonsCompleted",
+      "wordsLearned",
+      "challengeXp",
+      "challengeBadges",
+      "challengesApproved"
+    ];
     for (const k of keys) {
       const v = Number(derivedStats[k] ?? 0);
       const cur = Number(base[k] ?? 0);
@@ -821,6 +939,7 @@ function scheduleStatsSync(uid, derivedStats) {
       cachedStats = { ...base, ...patch };
       writeCachedStudent(uid);
       renderStats(cachedStats);
+      await syncLeaderboardProfile(rtdb, uid, cachedProfile || {}, cachedStats || {});
     } catch (e) {
       console.warn("Stats sync failed (non-fatal):", e);
     }
@@ -979,6 +1098,7 @@ function setupProfileEditing() {
 
       await loadStudentData(uid);
       renderProfile(currentUser, cachedProfile);
+      await syncLeaderboardProfile(rtdb, uid, cachedProfile || {}, cachedStats || {});
 
       profileView.style.display = "grid";
       
@@ -1225,6 +1345,7 @@ window.handleLogout = async function handleLogout() {
     const ok = window.confirm("Are you sure you want to sign out?");
     if (!ok) return;
     await signOut(auth);
+    clearAuthHint();
     {
   const ret = location.href;
   try { sessionStorage.setItem("edu_return_url", ret); } catch (e) {}
@@ -1258,6 +1379,7 @@ async function bootForUser(user) {
   try {
     await ensureStudentDoc(user);
     await loadStudentData(user.uid);
+    writeAuthHint(user, cachedProfile || {});
 
     renderProfile(user, cachedProfile);
     renderStats(cachedStats);
@@ -1304,6 +1426,7 @@ async function init() {
 
   onAuthStateChanged(auth, async (user) => {
     if (!user) {
+      clearAuthHint();
       {
   const ret = location.href;
   try { sessionStorage.setItem("edu_return_url", ret); } catch (e) {}
@@ -1313,6 +1436,7 @@ async function init() {
 }
 }
     currentUser = user;
+    writeAuthHint(user, cachedProfile || {});
     await bootForUser(user);
   });
 }

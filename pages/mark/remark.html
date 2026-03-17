@@ -483,7 +483,7 @@
                 loadWords();
             } else {
                 
-                window.location.href = '/pages/auth/login.html';
+                window.location.href = `/pages/auth/reg.html?mode=login&return=${encodeURIComponent(location.pathname + location.search + location.hash)}`;
             }
         });
 

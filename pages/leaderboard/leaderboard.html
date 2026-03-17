@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EduVenture | Leaderboard</title>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/pages/elements/style.css">
+    <link rel="stylesheet" href="/pages/leaderboard/leaderboard.css">
+    <link rel="icon" href="/favicon.png">
+</head>
+<body class="leaderboard-page">
+    <div class="overlay" id="overlay"></div>
+    <div class="sidebar" id="sidebar">
+        <button class="sidebar-close" id="closeMenu" aria-label="Close menu">
+            <i data-lucide="x" size="32"></i>
+        </button>
+        <a href="/pages/home/home page.html"><i data-lucide="home"></i><span>Home</span></a>
+        <a href="/pages/study_materials/study_materials.html"><i data-lucide="book-open"></i><span>Study Materials</span></a>
+        <a href="/pages/chat/global.chat.html"><i data-lucide="messages-square"></i><span>Global Chat</span></a>
+        <a href="/pages/games/games.html"><i data-lucide="joystick"></i><span>Games</span></a>
+        <a href="/pages/challenges/weekly_challanges.html"><i data-lucide="star"></i><span>Weekly challenges</span></a>
+        <a id="nav-active-page" href="/pages/leaderboard/leaderboard.html"><i data-lucide="trophy"></i><span>Leaderboard</span></a>
+    </div>
+
+    <header>
+        <div class="top-bar">
+            <div class="top-bar-left">
+                <div class="dot"></div>
+                <p>Live student rankings across challenge XP, test accuracy, and verified progress.</p>
+            </div>
+        </div>
+
+        <nav class="nav-main">
+            <div class="logo-section" onclick="location.href='/pages/home/home page.html'">
+                <img style="cursor: pointer;" src="/assets/logo.png" alt="EduVenture logo" class="icon-box">
+                <div style="cursor: pointer;" class="logo-text">
+                    <h1><span style="color: #ffffff;">EDU</span><span style="color: #fbbf24;">VENTURE</span></h1>
+                    <p>PREMIUM LEARNING</p>
+                </div>
+            </div>
+
+            <div class="user-actions">
+                <a href="/pages/mark/remark.html" class="action-item cart">
+                    <i data-lucide="bookmark"></i>
+                    Saved
+                </a>
+                <a href="/pages/account/account.html" class="action-item cart">
+                    <i data-lucide="user"></i>
+                    Profile
+                </a>
+
+                <button class="mobile-hamburger" id="openMenu" aria-label="Open menu">
+                    <i data-lucide="menu" size="28"></i>
+                </button>
+            </div>
+        </nav>
+
+        <div class="nav-bottom">
+            <a class="nav-a" href="/pages/home/home page.html"><i data-lucide="home"></i><span>Home</span></a>
+            <a class="nav-a" href="/pages/study_materials/study_materials.html"><i data-lucide="book-open"></i><span>Study Materials</span></a>
+            <a class="nav-a" href="/pages/chat/global.chat.html"><i data-lucide="messages-square"></i><span>Global Chat</span></a>
+            <a class="nav-a" href="/pages/games/games.html"><i data-lucide="joystick"></i><span>Games</span></a>
+            <a class="nav-a" href="/pages/challenges/weekly_challanges.html"><i data-lucide="star"></i><span>Weekly challenges</span></a>
+            <a class="nav-a" id="nav-active-page" href="/pages/leaderboard/leaderboard.html"><i data-lucide="trophy"></i><span>Leaderboard</span></a>
+        </div>
+    </header>
+
+    <main class="leaderboard-shell">
+        <section class="leaderboard-hero">
+            <div class="hero-copy">
+                <p class="hero-kicker">Live rankings</p>
+                <h2>See who is leading the board right now</h2>
+                <p class="hero-text">Track who gained the most challenge XP, who answered the most questions correctly, and who is building the strongest verified learning record.</p>
+            </div>
+
+            <div class="hero-stats">
+                <article class="hero-stat-card">
+                    <span>Total ranked students</span>
+                    <strong id="leaderboardCount">0</strong>
+                </article>
+                <article class="hero-stat-card">
+                    <span>Top XP</span>
+                    <strong id="topXpValue">0 XP</strong>
+                </article>
+                <article class="hero-stat-card">
+                    <span>Top true answers</span>
+                    <strong id="topTrueAnswersValue">0</strong>
+                </article>
+                <article class="hero-stat-card wide">
+                    <span>Board status</span>
+                    <p id="leaderboardState">Checking leaderboard access...</p>
+                </article>
+            </div>
+        </section>
+
+        <section class="insight-grid">
+            <article class="insight-card">
+                <p class="insight-label">XP leader</p>
+                <h3 id="xpLeaderName">No data yet</h3>
+                <p id="xpLeaderMeta" class="insight-meta">Waiting for ranked data.</p>
+            </article>
+            <article class="insight-card">
+                <p class="insight-label">Accuracy leader</p>
+                <h3 id="accuracyLeaderName">No data yet</h3>
+                <p id="accuracyLeaderMeta" class="insight-meta">Waiting for ranked data.</p>
+            </article>
+            <article class="insight-card">
+                <p class="insight-label">Your rank</p>
+                <h3 id="myRankValue">Sign in</h3>
+                <p id="myRankMeta" class="insight-meta">Login to highlight your leaderboard position.</p>
+            </article>
+        </section>
+
+        <section class="panel-card ranking-panel">
+            <div class="panel-head">
+                <div>
+                    <p class="panel-eyebrow">Sort leaderboard</p>
+                    <h3>Choose a ranking metric</h3>
+                </div>
+                <div class="sort-chip-row" id="sortChipRow">
+                    <button class="sort-chip active" type="button" data-sort="xp">XP</button>
+                    <button class="sort-chip" type="button" data-sort="trueAnswers">True answers</button>
+                    <button class="sort-chip" type="button" data-sort="accuracy">Accuracy</button>
+                    <button class="sort-chip" type="button" data-sort="tests">Tests</button>
+                    <button class="sort-chip" type="button" data-sort="badges">Badges</button>
+                </div>
+            </div>
+
+            <div id="leaderboardEmpty" class="empty-state hidden">
+                <div class="empty-icon"><i data-lucide="trophy" size="26"></i></div>
+                <h4>No ranked students yet</h4>
+                <p>Once students complete tests or earn challenge XP, the live leaderboard will appear here.</p>
+            </div>
+
+            <div id="leaderboardLoginState" class="login-state hidden">
+                <h4>Login required</h4>
+                <p>You need to sign in to load the live leaderboard from Firebase.</p>
+                <a class="primary-link" href="/pages/auth/reg.html">Open login page</a>
+            </div>
+
+            <div id="leaderboardContent" class="leaderboard-content hidden">
+                <div class="podium-grid" id="podiumGrid"></div>
+
+                <div class="table-shell">
+                    <table class="leaderboard-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Student</th>
+                                <th>XP</th>
+                                <th>True answers</th>
+                                <th>Accuracy</th>
+                                <th>Tests</th>
+                                <th>Badges</th>
+                            </tr>
+                        </thead>
+                        <tbody id="leaderboardTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <div class="footer-container">
+            <div class="footer-el">
+                <div class="footer-logo">
+                    <img src="/assets/logo.png" alt="icon" class="icon-box" style="width: 40px; height: 40px;">
+                    <h2><span style="color: #ffffff;">EDU</span><span style="color: #fbbf24;">VENTURE</span></h2>
+                </div>
+                <p>Empowering students globally with premium resources, expert-led courses, and a supportive learning community since 2026.</p>
+            </div>
+
+            <div class="footer-holder">
+                <div class="footer-el">
+                    <h3>Explore</h3>
+                    <ul>
+                        <li><a href="/pages/study_materials/study_materials.html">Study Materials</a></li>
+                        <li><a href="/pages/challenges/weekly_challanges.html">Weekly Challenges</a></li>
+                        <li><a href="/pages/leaderboard/leaderboard.html">Leaderboard</a></li>
+                        <li><a href="/pages/games/games.html">Games</a></li>
+                        <li><a href="/pages/chat/global.chat.html">Community Forum</a></li>
+                    </ul>
+                </div>
+                <div class="footer-el">
+                    <h3>Contact Us</h3>
+                    <div class="holder-footer-el">
+                        <div class="contact-item">
+                            <i data-lucide="phone" size="18"></i>
+                            <div>
+                                <strong>Student Support</strong>
+                                <p>+998 90 855 75 85</p>
+                            </div>
+                        </div>
+                        <div class="contact-item">
+                            <i data-lucide="mail" size="18"></i>
+                            <div>
+                                <strong>Email</strong>
+                                <p><a target="_blank" href="mailto:kyuter789@gmail.com" class="email-link">kyuter789@gmail.com</a></p>
+                            </div>
+                        </div>
+                        <div class="contact-item">
+                            <i data-lucide="send" size="18"></i>
+                            <div>
+                                <strong>telegram</strong>
+                                <p><a target="_blank" href="https://t.me/Hunters1ar" class="telegram">@Hunters1ar</a></p>
+                                <p><a target="_blank" href="https://t.me/EduVentureuz" class="telegram">EduVenture channel</a></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p style="text-align: center; font-size: small;">&copy; 2026 Eduventure Learning. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script src="/elements/UI.js"></script>
+    <script src="/pages/elements/script.js"></script>
+    <script type="module" src="/pages/leaderboard/leaderboard.page.js"></script>
+</body>
+</html>
