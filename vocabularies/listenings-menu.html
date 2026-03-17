@@ -678,11 +678,11 @@
         try {
           const computed = await hashWithSaltHex(node.saltHex, pw);
           const ok = computed.toLowerCase() === String(node.hashHex).toLowerCase();
-          if (!ok) alert("âŒ Wrong password.");
+          if (!ok) alert("❌ Wrong password.");
           return ok;
         } catch (e) {
           console.error(e);
-          alert("âŒ Password check failed (crypto error).");
+          alert("❌ Password check failed (crypto error).");
           return false;
         }
       }
@@ -845,7 +845,7 @@
         const pw = String(adminPwInput?.value || "").trim();
 
         setApplyBusy(true);
-        setAdminStatus("info", "Savingâ€¦");
+        setAdminStatus("info", "Saving...");
 
         try {
           const target = ref(db, `${PASSWORDS_PATH}/${key}`);
