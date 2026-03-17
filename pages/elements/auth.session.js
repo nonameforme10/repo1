@@ -1,5 +1,6 @@
 const AUTH_HINT_KEY = "eduventure_auth_hint_v1";
 const AUTH_HINT_MAX_AGE_MS = 1000 * 60 * 60 * 24 * 30;
+const AUTH_RECOVERY_GRACE_MS = 3500;
 
 function safeGet(key) {
   try {
@@ -15,10 +16,14 @@ function safeSet(key, value) {
   } catch {}
 }
 
-export function clearAuthHint() {
+function safeRemove(key) {
   try {
-    localStorage.removeItem(AUTH_HINT_KEY);
+    localStorage.removeItem(key);
   } catch {}
+}
+
+export function clearAuthHint() {
+  safeRemove(AUTH_HINT_KEY);
 }
 
 export function readAuthHint() {
@@ -45,6 +50,14 @@ export function readAuthHint() {
   }
 }
 
+export function hasRecentAuthHint() {
+  return !!readAuthHint();
+}
+
+export function getAuthRecoveryGraceMs() {
+  return AUTH_RECOVERY_GRACE_MS;
+}
+
 export function writeAuthHint(user, profile = {}) {
   const uid = String(user?.uid || "").trim();
   if (!uid) {
@@ -57,6 +70,7 @@ export function writeAuthHint(user, profile = {}) {
     email: String(profile?.email || user?.email || "").trim(),
     name: String(profile?.name || user?.displayName || "").trim(),
     group_name: String(profile?.group_name || profile?.group || "").trim(),
+    signedIn: true,
     updatedAt: Date.now(),
   };
 

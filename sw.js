@@ -5,7 +5,7 @@ const IS_SERVICE_WORKER_CONTEXT =
   self instanceof ServiceWorkerGlobalScope;
 
 if (IS_SERVICE_WORKER_CONTEXT) {
-  const VERSION = "v9.2.0";
+  const VERSION = "v9.2.1";
   const CORE_CACHE = `eduventure-core-${VERSION}`;
   const RUNTIME_CACHE = `eduventure-runtime-${VERSION}`;
   const MAX_RUNTIME_ENTRIES = 120;
@@ -96,7 +96,6 @@ if (IS_SERVICE_WORKER_CONTEXT) {
       (async () => {
         const cache = await caches.open(CORE_CACHE);
         await addAllSafe(cache, CORE_ASSETS);
-        self.skipWaiting();
       })()
     );
   });

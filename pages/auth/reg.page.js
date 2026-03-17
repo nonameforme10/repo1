@@ -1,7 +1,12 @@
 ﻿import { auth, rtdb } from "/elements/firebase.js";
 
 import { syncLeaderboardProfile } from "/pages/elements/leaderboard.sync.js";
-import { clearAuthHint, writeAuthHint } from "/pages/elements/auth.session.js";
+import {
+  clearAuthHint,
+  writeAuthHint,
+  readAuthHint,
+  getAuthRecoveryGraceMs,
+} from "/pages/elements/auth.session.js";
 
 import {
   onAuthStateChanged,
@@ -440,6 +445,29 @@ let isLoginMode = false;
 
 
 let isSubmitting = false;
+const AUTH_RECOVERY_GRACE_MS = getAuthRecoveryGraceMs();
+let authRecoveryTimer = null;
+let recoveryToastShown = false;
+
+function clearAuthRecoveryTimer() {
+  if (!authRecoveryTimer) return;
+  window.clearTimeout(authRecoveryTimer);
+  authRecoveryTimer = null;
+}
+
+function showSignedOutState() {
+  document.documentElement.style.cursor = "";
+  setMode(initialLoginMode);
+
+  if (requestedPasswordHelp) {
+    Toast.show(
+      "Password recovery is not set up yet. Please sign in with your existing password or contact the admin.",
+      "i",
+      5200
+    );
+    usernameInput?.focus();
+  }
+}
 
 function setMode(loginMode) {
   isLoginMode = !!loginMode;
@@ -590,32 +618,41 @@ async function initAuthGuard() {
   await setPersistence(auth, browserLocalPersistence);
 
   onAuthStateChanged(auth, (user) => {
-    document.documentElement.style.cursor = "";
+    clearAuthRecoveryTimer();
 
     if (user) {
+      recoveryToastShown = false;
+      document.documentElement.style.cursor = "";
       writeAuthHint(user);
-    } else if (!isSubmitting) {
-      clearAuthHint();
-    }
-
-    
-    if (user && !isSubmitting) {
-      goAfterAuth("/pages/home/home page.html");
+      if (!isSubmitting) {
+        goAfterAuth("/pages/home/home page.html");
+      }
       return;
     }
 
-    if (!user) {
-      setMode(initialLoginMode);
-
-      if (requestedPasswordHelp) {
-        Toast.show(
-          "Password recovery is not set up yet. Please sign in with your existing password or contact the admin.",
-          "i",
-          5200
-        );
-        usernameInput?.focus();
-      }
+    if (isSubmitting) {
+      document.documentElement.style.cursor = "";
+      return;
     }
+
+    const hint = readAuthHint();
+    if (hint) {
+      if (!recoveryToastShown) {
+        recoveryToastShown = true;
+        Toast.show("Restoring your saved session...", "i", 2200);
+      }
+      authRecoveryTimer = window.setTimeout(() => {
+        authRecoveryTimer = null;
+        recoveryToastShown = false;
+        if (auth.currentUser) return;
+        clearAuthHint();
+        showSignedOutState();
+      }, AUTH_RECOVERY_GRACE_MS);
+      return;
+    }
+
+    clearAuthHint();
+    showSignedOutState();
   });
 }
 

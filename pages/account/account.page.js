@@ -1,7 +1,12 @@
 
 import { auth, rtdb } from "/elements/firebase.js";
 import { syncLeaderboardProfile } from "/pages/elements/leaderboard.sync.js";
-import { clearAuthHint, writeAuthHint } from "/pages/elements/auth.session.js";
+import {
+  clearAuthHint,
+  writeAuthHint,
+  readAuthHint,
+  getAuthRecoveryGraceMs,
+} from "/pages/elements/auth.session.js";
 
 import {
   onAuthStateChanged,
@@ -189,6 +194,45 @@ let historyEntries = [];
 let historyFilter = "all";
 let statsSyncTimer = null;
 let unsubscribeFns = [];
+const AUTH_RECOVERY_GRACE_MS = getAuthRecoveryGraceMs();
+let authRecoveryTimer = null;
+let authRecoveryToastShown = false;
+
+function clearAuthRecoveryTimer() {
+  if (!authRecoveryTimer) return;
+  window.clearTimeout(authRecoveryTimer);
+  authRecoveryTimer = null;
+}
+
+function redirectToLoginPage() {
+  const ret = location.href;
+  try { sessionStorage.setItem("edu_return_url", ret); } catch (e) {}
+  try { localStorage.setItem("edu_return_url", ret); } catch (e) {}
+  location.replace(`/pages/auth/reg.html?return=${encodeURIComponent(ret)}`);
+}
+
+function showCachedAccountFromHint(hint) {
+  if (!hint?.uid) return;
+  try {
+    readCachedStudent(hint.uid);
+  } catch {}
+
+  const fallbackUser = {
+    displayName: hint.name || "Student",
+    email: hint.email || "",
+    metadata: {},
+  };
+  const fallbackProfile = {
+    ...(cachedProfile || {}),
+    name: cachedProfile?.name || hint.name || "Student",
+    email: cachedProfile?.email || hint.email || "",
+    group_name: cachedProfile?.group_name || hint.group_name || "Ungrouped",
+  };
+
+  renderProfile(fallbackUser, fallbackProfile);
+  renderStats(cachedStats);
+  if (window.lucide?.createIcons) window.lucide.createIcons();
+}
 
 
 
@@ -1344,15 +1388,11 @@ window.handleLogout = async function handleLogout() {
   try {
     const ok = window.confirm("Are you sure you want to sign out?");
     if (!ok) return;
+    clearAuthRecoveryTimer();
     await signOut(auth);
     clearAuthHint();
-    {
-  const ret = location.href;
-  try { sessionStorage.setItem("edu_return_url", ret); } catch (e) {}
-  try { localStorage.setItem("edu_return_url", ret); } catch (e) {}
-  location.replace(`/pages/auth/reg.html?return=${encodeURIComponent(ret)}`);
-  return;
-}
+    redirectToLoginPage();
+    return;
 } catch (e) {
     console.error(e);
     Toast.show("Logout failed.", "error");
@@ -1425,16 +1465,33 @@ async function init() {
   await setPersistence(auth, browserLocalPersistence);
 
   onAuthStateChanged(auth, async (user) => {
+    clearAuthRecoveryTimer();
+
     if (!user) {
+      currentUser = null;
+      const hint = readAuthHint();
+      if (hint) {
+        showCachedAccountFromHint(hint);
+        if (!authRecoveryToastShown) {
+          authRecoveryToastShown = true;
+          Toast.show("Restoring your saved session...", "info", 2200);
+        }
+        authRecoveryTimer = window.setTimeout(() => {
+          authRecoveryTimer = null;
+          authRecoveryToastShown = false;
+          if (auth.currentUser) return;
+          clearAuthHint();
+          redirectToLoginPage();
+        }, AUTH_RECOVERY_GRACE_MS);
+        return;
+      }
+
       clearAuthHint();
-      {
-  const ret = location.href;
-  try { sessionStorage.setItem("edu_return_url", ret); } catch (e) {}
-  try { localStorage.setItem("edu_return_url", ret); } catch (e) {}
-  location.replace(`/pages/auth/reg.html?return=${encodeURIComponent(ret)}`);
-  return;
-}
-}
+      redirectToLoginPage();
+      return;
+    }
+
+    authRecoveryToastShown = false;
     currentUser = user;
     writeAuthHint(user, cachedProfile || {});
     await bootForUser(user);
