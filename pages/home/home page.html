@@ -3,10 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Install EduVenture for fast access to study materials, challenges, and premium learning resources.">
+    <meta name="theme-color" content="#111827">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="EduVenture">
     <script src="https://unpkg.com/lucide@latest"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/pages/elements/style.css">
 <link rel="icon" href="/favicon.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/assets/pwa-icon-180.png">
 <script src="/assets/UI.js" defer></script>
 </head>
 <body>
@@ -76,11 +83,16 @@
                 Browse Courses 
                 <i data-lucide="arrow-right" size="18"></i>
             </a>
+            <button type="button" class="btn-outline install-app-button" id="installAppButton" hidden>
+                <i data-lucide="download" size="18"></i>
+                <span data-install-label>Install app</span>
+            </button>
             <a href="/pages/account/account.html" class="btn-outline">
                 <i data-lucide="line-chart" size="18"></i> 
                 Check progress
             </a>
         </div>
+        <p class="install-app-hint" id="installAppHint">Install EduVenture for quick access.</p>
     </main>
     <main class="perks">
         <div class="card-box">
@@ -248,11 +260,10 @@
     </div>
 </footer>
     <script src="/pages/home/script.js"></script>
+    <script src="/pages/home/pwa-install.js"></script>
     <script src="/elements/UI.js"></script>
     <script src="/pages/elements/script.js"></script>
     <script src="/script-internet-checker.js"></script>
     <script type="module" src="/elements/firebase.js"></script>
-    <script src="/sw.js"></script>
 </body>
 </html>
-

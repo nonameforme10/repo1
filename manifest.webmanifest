@@ -1,0 +1,31 @@
+{
+  "id": "/pages/home/home%20page.html",
+  "name": "EduVenture",
+  "short_name": "EduVenture",
+  "description": "Study materials, challenges, and premium learning resources for students.",
+  "start_url": "/pages/home/home%20page.html",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#111827",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/assets/pwa-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/assets/pwa-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/assets/pwa-icon-180.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
+}

@@ -70,6 +70,7 @@ export function writeAuthHint(user, profile = {}) {
     email: String(profile?.email || user?.email || "").trim(),
     name: String(profile?.name || user?.displayName || "").trim(),
     group_name: String(profile?.group_name || profile?.group || "").trim(),
+    photo_url: String(profile?.photo_url || profile?.photoURL || user?.photoURL || "").trim(),
     signedIn: true,
     updatedAt: Date.now(),
   };

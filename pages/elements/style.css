@@ -428,6 +428,7 @@ header {
     align-items: center;
     justify-content: center;
     gap: 15px;
+    flex-wrap: wrap;
 }
 
 .btn-white {
@@ -453,6 +454,24 @@ header {
     display: flex;
     align-items: center;
     gap: 10px;
+}
+
+button.btn-outline {
+    cursor: pointer;
+    font: inherit;
+}
+
+.install-app-button[disabled] {
+    opacity: 0.65;
+    cursor: not-allowed;
+}
+
+.install-app-hint {
+    margin: 18px auto 0;
+    max-width: 720px;
+    color: #cbd5e1;
+    font-size: 14px;
+    line-height: 1.7;
 }
 
 .perks {

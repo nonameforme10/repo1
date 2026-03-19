@@ -5,7 +5,7 @@ const IS_SERVICE_WORKER_CONTEXT =
   self instanceof ServiceWorkerGlobalScope;
 
 if (IS_SERVICE_WORKER_CONTEXT) {
-  const VERSION = "v9.2.1";
+  const VERSION = "v9.3.1";
   const CORE_CACHE = `eduventure-core-${VERSION}`;
   const RUNTIME_CACHE = `eduventure-runtime-${VERSION}`;
   const MAX_RUNTIME_ENTRIES = 120;
@@ -18,9 +18,21 @@ if (IS_SERVICE_WORKER_CONTEXT) {
   const CORE_ASSETS = [
     abs("./"),
     abs("index.html"),
+    abs("manifest.webmanifest"),
     abs("style.css"),
     abs("script.js"),
     abs("favicon.png"),
+    abs("assets/pwa-icon-180.png"),
+    abs("assets/pwa-icon-192.png"),
+    abs("assets/pwa-icon-512.png"),
+    abs("assets/logo.png"),
+    abs("assets/UI.js"),
+    abs("elements/UI.js"),
+    abs("pages/home/home%20page.html"),
+    abs("pages/home/script.js"),
+    abs("pages/home/pwa-install.js"),
+    abs("pages/elements/style.css"),
+    abs("pages/elements/script.js"),
     abs("ping.txt"),
   ];
 

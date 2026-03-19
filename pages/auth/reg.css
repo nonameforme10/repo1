@@ -154,3 +154,164 @@
             cursor: pointer;
         }
         #loginBtn:hover { text-decoration: underline; }
+
+        .profile-completion-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            background: rgba(15, 23, 42, 0.48);
+            backdrop-filter: blur(8px);
+        }
+
+        .profile-completion-card {
+            width: min(520px, 100%);
+            max-height: calc(100vh - 48px);
+            overflow: auto;
+            padding: 28px;
+            border-radius: 24px;
+            background: rgba(255, 255, 255, 0.92);
+            border: 1px solid rgba(255, 255, 255, 0.72);
+            box-shadow: 0 20px 50px rgba(15, 23, 42, 0.22);
+        }
+
+        .profile-completion-header {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        .profile-completion-avatar {
+            width: 72px;
+            height: 72px;
+            margin: 0 auto 14px;
+            border-radius: 50%;
+            background: #111827;
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: 700;
+            overflow: hidden;
+        }
+
+        .profile-completion-avatar.has-photo {
+            background: #e2e8f0;
+            color: transparent;
+        }
+
+        .profile-completion-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .profile-completion-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 10px;
+            padding: 6px 12px;
+            border-radius: 999px;
+            background: rgba(37, 99, 235, 0.1);
+            color: #1d4ed8;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+        }
+
+        .profile-completion-header h3 {
+            margin: 0 0 8px;
+            font-size: 28px;
+            color: #0f172a;
+        }
+
+        .profile-completion-copy,
+        .profile-completion-email {
+            margin: 0;
+            color: #475569;
+            line-height: 1.5;
+        }
+
+        .profile-completion-email {
+            margin-top: 8px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .profile-completion-form .form-group {
+            text-align: left;
+        }
+
+        .profile-completion-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .profile-secondary-btn {
+            min-height: 48px;
+            padding: 0 18px;
+            border-radius: 12px;
+            border: 1px solid rgba(15, 23, 42, 0.12);
+            background: rgba(255, 255, 255, 0.6);
+            color: #0f172a;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .profile-secondary-btn:hover {
+            background: #ffffff;
+        }
+
+        .profile-secondary-btn:disabled,
+        .profile-completion-submit:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .profile-completion-submit {
+            width: auto;
+            min-width: 160px;
+            margin-top: 0;
+        }
+
+        @media (max-width: 560px) {
+            .reg-card {
+                margin: 24px;
+                padding: 28px;
+            }
+
+            .row-2 {
+                flex-direction: column;
+            }
+
+            .profile-completion-overlay {
+                padding: 16px;
+            }
+
+            .profile-completion-card {
+                padding: 22px;
+                max-height: calc(100vh - 32px);
+            }
+
+            .profile-completion-header h3 {
+                font-size: 24px;
+            }
+
+            .profile-completion-actions {
+                flex-direction: column-reverse;
+            }
+
+            .profile-secondary-btn,
+            .profile-completion-submit {
+                width: 100%;
+            }
+        }

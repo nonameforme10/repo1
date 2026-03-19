@@ -111,6 +111,41 @@ function getInitials(name, fallbackEmail) {
   return base.slice(0, 2).toUpperCase();
 }
 
+function getProfilePhotoUrl(profile, user) {
+  return String(
+    profile?.photo_url ||
+    profile?.photoURL ||
+    user?.photoURL ||
+    ""
+  ).trim();
+}
+
+function renderAvatar(el, { name, email, photoUrl }) {
+  if (!el) return;
+
+  const fallback = () => {
+    el.classList.remove("has-photo");
+    el.innerHTML = "";
+    el.textContent = getInitials(name, email);
+  };
+
+  const cleanPhoto = String(photoUrl || "").trim();
+  if (!cleanPhoto) {
+    fallback();
+    return;
+  }
+
+  const img = document.createElement("img");
+  img.src = cleanPhoto;
+  img.alt = `${String(name || "Student").trim() || "Student"} avatar`;
+  img.referrerPolicy = "no-referrer";
+  img.addEventListener("error", fallback, { once: true });
+
+  el.classList.add("has-photo");
+  el.innerHTML = "";
+  el.appendChild(img);
+}
+
 
 const Toast = (() => {
   const id = "toast-container-eduventure";
@@ -220,6 +255,7 @@ function showCachedAccountFromHint(hint) {
   const fallbackUser = {
     displayName: hint.name || "Student",
     email: hint.email || "",
+    photoURL: hint.photo_url || "",
     metadata: {},
   };
   const fallbackProfile = {
@@ -227,6 +263,7 @@ function showCachedAccountFromHint(hint) {
     name: cachedProfile?.name || hint.name || "Student",
     email: cachedProfile?.email || hint.email || "",
     group_name: cachedProfile?.group_name || hint.group_name || "Ungrouped",
+    photo_url: cachedProfile?.photo_url || hint.photo_url || "",
   };
 
   renderProfile(fallbackUser, fallbackProfile);
@@ -464,29 +501,38 @@ async function ensureStudentDoc(user) {
   const createdAtValue = Number.isFinite(creationMs) ? creationMs : serverTimestamp();
 
   const toWrite = {};
+  let profileWritePatch = null;
+  let statsWritePatch = null;
+  const photoUrl = getProfilePhotoUrl(profile, user);
 
   if (!profile) {
-    toWrite[`students/${uid}/profile`] = {
+    profileWritePatch = {
       name: user.displayName || deriveNameFromEmail(email),
       email,
       phone: "",
+      photo_url: photoUrl,
       registration_date: todayISO(),
       createdAt: createdAtValue,
     };
+    toWrite[`students/${uid}/profile`] = profileWritePatch;
   } else {
     const patch = {};
     if (!profile.name) patch.name = user.displayName || deriveNameFromEmail(email);
     if (!profile.email && email) patch.email = email;
+    if (photoUrl && photoUrl !== String(profile.photo_url || "").trim()) patch.photo_url = photoUrl;
     if (!profile.registration_date) patch.registration_date = todayISO();
     if (profile.createdAt == null) patch.createdAt = createdAtValue;
 
     if (Object.keys(patch).length) {
-      toWrite[`students/${uid}/profile`] = patch;
+      profileWritePatch = patch;
+      for (const [key, value] of Object.entries(patch)) {
+        toWrite[`students/${uid}/profile/${key}`] = value;
+      }
     }
   }
 
   if (!stats) {
-    toWrite[`students/${uid}/stats`] = {
+    statsWritePatch = {
       readingsCompleted: 0,
       listeningsCompleted: 0,
       wordsLearned: 0,
@@ -495,6 +541,7 @@ async function ensureStudentDoc(user) {
       challengeBadges: 0,
       challengesApproved: 0,
     };
+    toWrite[`students/${uid}/stats`] = statsWritePatch;
   } else {
     const patch = {};
     const keys = [
@@ -507,7 +554,12 @@ async function ensureStudentDoc(user) {
       "challengesApproved"
     ];
     for (const k of keys) if (stats[k] == null) patch[k] = 0;
-    if (Object.keys(patch).length) toWrite[`students/${uid}/stats`] = patch;
+    if (Object.keys(patch).length) {
+      statsWritePatch = patch;
+      for (const [key, value] of Object.entries(patch)) {
+        toWrite[`students/${uid}/stats/${key}`] = value;
+      }
+    }
   }
 
   if (Object.keys(toWrite).length) {
@@ -516,13 +568,14 @@ async function ensureStudentDoc(user) {
 
   const mergedProfile = {
     ...(profile || {}),
-    ...(toWrite[`students/${uid}/profile`] || {}),
-    name: profile?.name || user.displayName || deriveNameFromEmail(email),
-    group_name: profile?.group_name || profile?.group || "Ungrouped"
+    ...(profileWritePatch || {}),
+    name: profileWritePatch?.name || profile?.name || user.displayName || deriveNameFromEmail(email),
+    group_name: profile?.group_name || profile?.group || "Ungrouped",
+    photo_url: profileWritePatch?.photo_url || photoUrl || ""
   };
   const mergedStats = {
     ...(stats || {}),
-    ...(toWrite[`students/${uid}/stats`] || {})
+    ...(statsWritePatch || {})
   };
 
   await syncLeaderboardProfile(rtdb, uid, mergedProfile, mergedStats);
@@ -621,10 +674,11 @@ function renderProfile(user, profile) {
   const identity = username ? `@${username}` : email;
   const phone = profile?.phone || "";
   const createdAt = profile?.createdAt ?? user?.metadata?.creationTime ?? null;
+  const photoUrl = getProfilePhotoUrl(profile, user);
 
   const group = getGroupFromProfile(profile);
 
-  safeText($id("userAvatar"), getInitials(name, email));
+  renderAvatar($id("userAvatar"), { name, email, photoUrl });
   safeText($id("userName"), name);
   safeText($id("userEmail"), identity);
 

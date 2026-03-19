@@ -35,6 +35,16 @@ function normalizeGroup(profile = {}, fallback = "Ungrouped") {
   return (raw || fallback).slice(0, 40);
 }
 
+function normalizePhotoUrl(profile = {}, fallback = "") {
+  const raw = toSafeText(
+    profile.photo_url ||
+    profile.photoURL ||
+    profile.avatarUrl ||
+    fallback
+  ).trim();
+  return raw.slice(0, 1200);
+}
+
 function buildBaseEntry(previous, uid, profile = {}) {
   const prev = previous && typeof previous === "object" ? previous : {};
   const challengeXp = clampCount(prev.challengeXp, 0);
@@ -42,6 +52,7 @@ function buildBaseEntry(previous, uid, profile = {}) {
     uid,
     name: normalizeName(profile, prev.name || "Student"),
     group_name: normalizeGroup(profile, prev.group_name || "Ungrouped"),
+    photo_url: normalizePhotoUrl(profile, prev.photo_url || ""),
     totalXp: clampCount(prev.totalXp, challengeXp),
     challengeXp,
     trueAnswers: clampCount(prev.trueAnswers, 0),

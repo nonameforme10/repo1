@@ -900,3 +900,91 @@
   };
 
 })();
+
+(function initEduventurePwaSupport() {
+  "use strict";
+
+  if (window.__EDUVENTURE_PWA__) return;
+
+  const DISPLAY_MODE_QUERY = "(display-mode: standalone)";
+  const ua = navigator.userAgent || "";
+  const isIOS = /iphone|ipad|ipod/i.test(ua);
+  const isSafari =
+    /^((?!chrome|android|crios|fxios|edgios).)*safari/i.test(ua) ||
+    ((/iphone|ipad|ipod/i.test(ua) || /macintosh/i.test(ua)) &&
+      navigator.vendor === "Apple Computer, Inc.");
+
+  let deferredPrompt = null;
+
+  const isInstalled = () =>
+    !!window.matchMedia?.(DISPLAY_MODE_QUERY).matches || window.navigator.standalone === true;
+
+  function getState() {
+    const installed = isInstalled();
+
+    return {
+      canPrompt: !!deferredPrompt && !installed,
+      installed,
+      isIOS,
+      isSafari,
+    };
+  }
+
+  async function promptInstall() {
+    if (isInstalled()) {
+      return { outcome: "installed" };
+    }
+
+    if (!deferredPrompt) {
+      return { outcome: "unavailable", reason: isIOS ? "ios-manual-install" : "prompt-unavailable" };
+    }
+
+    const promptEvent = deferredPrompt;
+    deferredPrompt = null;
+
+    await promptEvent.prompt();
+    const choice = await promptEvent.userChoice.catch(() => ({ outcome: "dismissed" }));
+
+    emitState();
+    return choice;
+  }
+
+  function emitState() {
+    const detail = getState();
+    window.dispatchEvent(new CustomEvent("eduventure:pwa-state", { detail }));
+  }
+
+  window.__EDUVENTURE_PWA__ = {
+    getState,
+    promptInstall,
+  };
+  window.EDUVENTURE_PWA = window.__EDUVENTURE_PWA__;
+
+  window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    deferredPrompt = event;
+    emitState();
+  });
+
+  window.addEventListener("appinstalled", () => {
+    deferredPrompt = null;
+    emitState();
+  });
+
+  if (window.matchMedia) {
+    const media = window.matchMedia(DISPLAY_MODE_QUERY);
+    const sync = () => emitState();
+
+    if (typeof media.addEventListener === "function") {
+      media.addEventListener("change", sync);
+    } else if (typeof media.addListener === "function") {
+      media.addListener(sync);
+    }
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", emitState, { once: true });
+  } else {
+    emitState();
+  }
+})();

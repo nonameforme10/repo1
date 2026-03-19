@@ -48,6 +48,29 @@ function escapeHtml(value) {
     .replace(/'/g, "&#39;");
 }
 
+function initialsForName(name) {
+  const base = safeText(name).trim() || "Student";
+  const parts = base.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+  return base.slice(0, 2).toUpperCase();
+}
+
+function avatarHtml(row, extraClass = "") {
+  const className = ["student-avatar", extraClass].filter(Boolean).join(" ");
+  const photoUrl = safeText(row.photo_url).trim();
+  const displayName = safeText(row.name).trim() || "Student";
+
+  if (photoUrl) {
+    return `
+      <span class="${className} has-photo">
+        <img src="${escapeHtml(photoUrl)}" alt="${escapeHtml(displayName)} avatar" referrerpolicy="no-referrer">
+      </span>
+    `;
+  }
+
+  return `<span class="${className}">${escapeHtml(initialsForName(displayName))}</span>`;
+}
+
 function accuracyFor(row) {
   const total = safeCount(row.totalAnswers);
   if (total <= 0) return 0;
@@ -108,6 +131,7 @@ function normalizeRow(uid, raw) {
     uid,
     name: safeText(row.name || "Student").trim() || "Student",
     group_name: safeText(row.group_name || "Ungrouped").trim() || "Ungrouped",
+    photo_url: safeText(row.photo_url || "").trim(),
     totalXp: safeCount(row.totalXp),
     challengeXp: safeCount(row.challengeXp),
     trueAnswers: safeCount(row.trueAnswers),
@@ -168,7 +192,8 @@ async function ensureCurrentUserLeaderboardSnapshot(user) {
       uid,
       {
         name: profile.name || profile.fullName || user.displayName || "Student",
-        group_name: profile.group_name || profile.group || "Ungrouped"
+        group_name: profile.group_name || profile.group || "Ungrouped",
+        photo_url: profile.photo_url || user.photoURL || ""
       },
       {
         totalXp: safeCount(stats.challengeXp),
@@ -260,8 +285,13 @@ function renderPodium(sortedRows) {
     card.className = `podium-card rank-${index + 1}`;
     card.innerHTML = `
       <div class="podium-rank">Rank #${index + 1}</div>
-      <h4 class="podium-name">${escapeHtml(row.name)}</h4>
-      <div class="podium-group">${escapeHtml(row.group_name)}</div>
+      <div class="podium-head">
+        ${avatarHtml(row, "podium-avatar")}
+        <div class="podium-copy">
+          <h4 class="podium-name">${escapeHtml(row.name)}</h4>
+          <div class="podium-group">${escapeHtml(row.group_name)}</div>
+        </div>
+      </div>
       <div class="podium-score">${escapeHtml(metricDisplay(row, currentSort))}</div>
       <div class="podium-sub">
         ${escapeHtml(`${row.trueAnswers} true answers · ${row.testsCompleted} tests · ${row.challengeBadges} badges`)}
@@ -282,9 +312,12 @@ function renderTable(sortedRows) {
     tr.innerHTML = `
       <td><span class="rank-badge">#${index + 1}</span></td>
       <td>
-        <div class="student-meta">
-          <span class="student-name">${escapeHtml(row.name)}</span>
-          <span class="student-group">${escapeHtml(row.group_name)}</span>
+        <div class="student-cell">
+          ${avatarHtml(row, "table-avatar")}
+          <div class="student-meta">
+            <span class="student-name">${escapeHtml(row.name)}</span>
+            <span class="student-group">${escapeHtml(row.group_name)}</span>
+          </div>
         </div>
       </td>
       <td><span class="metric-strong">${row.totalXp}</span> <span class="metric-soft">XP</span></td>

@@ -16,6 +16,7 @@ import {
   signInWithEmailAndPassword,
   GoogleAuthProvider,
   signInWithPopup,
+  signOut,
   updateProfile,
   deleteUser,
 } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
@@ -34,8 +35,23 @@ function todayISO() {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+function extractUsernameSeed(raw) {
+  const value = String(raw || "").trim().toLowerCase();
+  const beforeAt = value.includes("@") ? value.split("@")[0] : value;
+  return beforeAt.replace(/\+.*$/, "");
+}
+
 function normalizeUsername(raw) {
-  return String(raw || "").trim().toLowerCase().replace(/\s+/g, "");
+  return extractUsernameSeed(raw).replace(/\s+/g, "");
+}
+
+function sanitizeUsernameAutofillValue(raw) {
+  const cleaned = normalizeUsername(raw).replace(/[^a-z0-9._]/g, "");
+  return cleaned.slice(0, 20);
+}
+
+function suggestUsernameFromEmail(email) {
+  return sanitizeUsernameAutofillValue(email);
 }
 
 function normalizePhone(raw) {
@@ -84,6 +100,55 @@ function buildFullName(first, last) {
   const f = String(first || "").trim();
   const l = String(last || "").trim();
   return [f, l].filter(Boolean).join(" ").trim();
+}
+
+function splitFullName(fullName) {
+  const parts = String(fullName || "").trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) {
+    return { first_name: "", last_name: "" };
+  }
+  return {
+    first_name: parts[0],
+    last_name: parts.slice(1).join(" "),
+  };
+}
+
+function deriveDisplayName(user, profile = {}, fallback = "Student") {
+  const raw = String(
+    profile?.name ||
+    buildFullName(profile?.first_name, profile?.last_name) ||
+    user?.displayName ||
+    fallback
+  ).trim();
+  return raw || fallback;
+}
+
+function getProfilePhoto(profile = {}, user = null) {
+  return String(
+    profile?.photo_url ||
+    profile?.photoURL ||
+    user?.photoURL ||
+    ""
+  ).trim();
+}
+
+function deriveNameFromEmail(email) {
+  const raw = String(email || "").split("@")[0] || "Student";
+  return raw
+    .replace(/[._-]+/g, " ")
+    .split(" ")
+    .filter(Boolean)
+    .map((part) => part[0].toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function getInitials(name, fallbackEmail) {
+  const base = String(name || "").trim() || deriveNameFromEmail(fallbackEmail);
+  const parts = base.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
+  return base.slice(0, 2).toUpperCase();
 }
 
 
@@ -174,6 +239,9 @@ const Toast = (() => {
 function studentBaseRef(uid) {
   return ref(rtdb, `students/${uid}`);
 }
+function studentProfileRef(uid) {
+  return ref(rtdb, `students/${uid}/profile`);
+}
 function usernameRef(usernameLower) {
   return ref(rtdb, `students/usernames/${usernameLower}`);
 }
@@ -193,6 +261,17 @@ async function claimPhoneOrThrow(phoneKeyDigits, uid) {
   if (!res.committed) throw new Error("phone_taken");
 }
 
+async function releasePhoneIfOwned(phoneKeyDigits, uid) {
+  if (!phoneKeyDigits) return;
+
+  try {
+    const snap = await get(phoneIndexRef(phoneKeyDigits));
+    if (snap.exists() && String(snap.val() || "") === uid) {
+      await update(ref(rtdb), { [`phones/${phoneKeyDigits}`]: null });
+    }
+  } catch {}
+}
+
 
 async function claimUsernameOrThrow(usernameLower, uid) {
   const res = await runTransaction(usernameRef(usernameLower), (current) => {
@@ -202,13 +281,28 @@ async function claimUsernameOrThrow(usernameLower, uid) {
   });
 
   if (!res.committed) throw new Error("username_taken");
+  await update(ref(rtdb), { [`usernames/${usernameLower}`]: uid });
+}
+
+async function releaseUsernameIfOwned(usernameLower, uid) {
+  if (!usernameLower) return;
+
+  try {
+    const snap = await get(usernameRef(usernameLower));
+    if (snap.exists() && String(snap.val() || "") === uid) {
+      await update(ref(rtdb), {
+        [`students/usernames/${usernameLower}`]: null,
+        [`usernames/${usernameLower}`]: null,
+      });
+    }
+  } catch {}
 }
 
 async function ensureStudentRecord(user, profilePatch = {}) {
   const uid = user.uid;
   const baseRef = studentBaseRef(uid);
 
-  const profileRef = ref(rtdb, `students/${uid}/profile`);
+  const profileRef = studentProfileRef(uid);
   const statsRef = ref(rtdb, `students/${uid}/stats`);
 
   const [pSnap, sSnap] = await Promise.all([get(profileRef), get(statsRef)]);
@@ -216,9 +310,11 @@ async function ensureStudentRecord(user, profilePatch = {}) {
   const existingStats = sSnap.exists() ? (sSnap.val() || {}) : null;
 
   const updates = {};
+  let profileWritePatch = null;
+  let statsWritePatch = null;
 
   if (!existingProfile) {
-    updates.profile = {
+    profileWritePatch = {
       username: profilePatch.username || "",
       first_name: profilePatch.first_name || "",
       last_name: profilePatch.last_name || "",
@@ -227,11 +323,14 @@ async function ensureStudentRecord(user, profilePatch = {}) {
       phone: profilePatch.phone || "",
       group_name: profilePatch.group_name || profilePatch.group || "",
       group: profilePatch.group || profilePatch.group_name || "",
+      photo_url: getProfilePhoto(profilePatch, user),
       registration_date: todayISO(),
       createdAt: Date.now(),
     };
+    updates.profile = profileWritePatch;
   } else {
     const patch = {};
+    const nextPhotoUrl = getProfilePhoto(profilePatch, user);
 
     if (profilePatch.username) patch.username = profilePatch.username;
     if (profilePatch.first_name) patch.first_name = profilePatch.first_name;
@@ -243,15 +342,23 @@ async function ensureStudentRecord(user, profilePatch = {}) {
     
     if ("group_name" in profilePatch) patch.group_name = profilePatch.group_name;
     if ("group" in profilePatch) patch.group = profilePatch.group;
+    if (nextPhotoUrl && nextPhotoUrl !== String(existingProfile.photo_url || "").trim()) {
+      patch.photo_url = nextPhotoUrl;
+    }
 
     if (!existingProfile.registration_date) patch.registration_date = todayISO();
     if (existingProfile.createdAt == null) patch.createdAt = Date.now();
 
-    if (Object.keys(patch).length) updates.profile = patch;
+    if (Object.keys(patch).length) {
+      profileWritePatch = patch;
+      for (const [key, value] of Object.entries(patch)) {
+        updates[`profile/${key}`] = value;
+      }
+    }
   }
 
   if (!existingStats) {
-    updates.stats = {
+    statsWritePatch = {
       readingsCompleted: 0,
       listeningsCompleted: 0,
       wordsLearned: 0,
@@ -260,6 +367,7 @@ async function ensureStudentRecord(user, profilePatch = {}) {
       challengeBadges: 0,
       challengesApproved: 0,
     };
+    updates.stats = statsWritePatch;
   } else {
     const statsPatch = {};
     const statKeys = [
@@ -276,7 +384,12 @@ async function ensureStudentRecord(user, profilePatch = {}) {
       if (existingStats[key] == null) statsPatch[key] = 0;
     }
 
-    if (Object.keys(statsPatch).length) updates.stats = statsPatch;
+    if (Object.keys(statsPatch).length) {
+      statsWritePatch = statsPatch;
+      for (const [key, value] of Object.entries(statsPatch)) {
+        updates[`stats/${key}`] = value;
+      }
+    }
   }
 
   if (Object.keys(updates).length) {
@@ -285,24 +398,32 @@ async function ensureStudentRecord(user, profilePatch = {}) {
 
   const mergedProfile = {
     ...(existingProfile || {}),
-    ...(updates.profile || {}),
-    ...profilePatch,
-    name: profilePatch.name || updates.profile?.name || existingProfile?.name || user.displayName || "Student",
+    ...(profileWritePatch || {}),
+    name: profilePatch.name || profileWritePatch?.name || existingProfile?.name || user.displayName || "Student",
     group_name:
       profilePatch.group_name ||
       profilePatch.group ||
-      updates.profile?.group_name ||
-      updates.profile?.group ||
+      profileWritePatch?.group_name ||
+      profileWritePatch?.group ||
       existingProfile?.group_name ||
       existingProfile?.group ||
-      "Ungrouped"
+      "Ungrouped",
+    photo_url:
+      profileWritePatch?.photo_url ||
+      getProfilePhoto(existingProfile, user) ||
+      ""
   };
   const mergedStats = {
     ...(existingStats || {}),
-    ...(updates.stats || {})
+    ...(statsWritePatch || {})
   };
 
   await syncLeaderboardProfile(rtdb, uid, mergedProfile, mergedStats);
+  return {
+    existed: !!existingProfile,
+    profile: mergedProfile,
+    stats: mergedStats,
+  };
 }
 
 
@@ -320,6 +441,10 @@ function authErrorToHuman(err) {
     return "Too many attempts. Try again later.";
   if (code === "auth/network-request-failed")
     return "Network error. Check your internet.";
+  if (code === "auth/popup-closed-by-user")
+    return "Google sign-in was closed before it finished.";
+  if (code === "auth/popup-blocked")
+    return "Your browser blocked the Google sign-in popup.";
   if (err?.message === "username_taken") return "That username is already taken.";
   if (err?.message === "phone_taken") return "That phone number is already registered.";
   if (err?.message === "phone_not_found") return "No account found with that phone number.";
@@ -449,11 +574,35 @@ const AUTH_RECOVERY_GRACE_MS = getAuthRecoveryGraceMs();
 let authRecoveryTimer = null;
 let recoveryToastShown = false;
 
+function bindUsernameFieldSanitizer(input) {
+  if (!input) return;
+
+  const sync = () => {
+    const current = String(input.value || "");
+    if (!current.includes("@")) return;
+
+    const sanitized = sanitizeUsernameAutofillValue(current);
+    if (sanitized && sanitized !== current) {
+      input.value = sanitized;
+    }
+  };
+
+  input.addEventListener("input", sync);
+  input.addEventListener("change", sync);
+  input.addEventListener("blur", sync);
+
+  setTimeout(sync, 0);
+  setTimeout(sync, 250);
+  setTimeout(sync, 1000);
+}
+
 function clearAuthRecoveryTimer() {
   if (!authRecoveryTimer) return;
   window.clearTimeout(authRecoveryTimer);
   authRecoveryTimer = null;
 }
+
+bindUsernameFieldSanitizer(usernameInput);
 
 function showSignedOutState() {
   document.documentElement.style.cursor = "";
@@ -515,92 +664,355 @@ function setMode(loginMode) {
 
 loginToggleBtn?.addEventListener("click", () => setMode(!isLoginMode));
 
+function buildGoogleProfileDraft(existingProfile = {}, user) {
+  const rawIdentifier = String(usernameInput?.value || "").trim();
+  const typedName = buildFullName(firstNameInput?.value || "", lastNameInput?.value || "");
+  const draftPhoneFromIdentifier = looksLikePhone(rawIdentifier)
+    ? normalizePhone(rawIdentifier)
+    : "";
+  const draftUsernameFromIdentifier =
+    rawIdentifier && !looksLikePhone(rawIdentifier)
+      ? normalizeUsername(rawIdentifier)
+      : "";
+
+  return {
+    name: String(
+      existingProfile?.name ||
+      typedName ||
+      user?.displayName ||
+      deriveNameFromEmail(user?.email || "") ||
+      "Student"
+    ).trim(),
+    username: String(
+      existingProfile?.username ||
+      draftUsernameFromIdentifier ||
+      suggestUsernameFromEmail(existingProfile?.email || user?.email || "") ||
+      ""
+    ).trim(),
+    group: String(existingProfile?.group_name || existingProfile?.group || groupInput?.value || "").trim(),
+    phone: String(existingProfile?.phone || normalizePhone(phoneInput?.value || "") || draftPhoneFromIdentifier || "").trim(),
+    email: String(existingProfile?.email || user?.email || "").trim(),
+    photo_url: getProfilePhoto(existingProfile, user),
+  };
+}
+
+function needsGoogleProfileCompletion(existingProfile = {}, user) {
+  const fullName = String(existingProfile?.name || user?.displayName || "").trim();
+  const group = String(existingProfile?.group_name || existingProfile?.group || "").trim();
+  return !fullName || !group;
+}
+
+function renderGoogleCompletionAvatar(container, { name, email, photoUrl }) {
+  if (!container) return;
+
+  const fallback = () => {
+    container.classList.remove("has-photo");
+    container.textContent = getInitials(name, email);
+  };
+
+  const cleanPhoto = String(photoUrl || "").trim();
+  container.innerHTML = "";
+
+  if (!cleanPhoto) {
+    fallback();
+    return;
+  }
+
+  const img = document.createElement("img");
+  img.src = cleanPhoto;
+  img.alt = `${String(name || "Student").trim() || "Student"} avatar`;
+  img.referrerPolicy = "no-referrer";
+  img.addEventListener("error", fallback, { once: true });
+  container.classList.add("has-photo");
+  container.appendChild(img);
+}
+
+async function promptForGoogleProfile(user, existingProfile = {}, options = {}) {
+  const draft = buildGoogleProfileDraft(existingProfile, user);
+
+  return new Promise((resolve) => {
+    const modal = document.createElement("div");
+    modal.className = "profile-completion-overlay";
+    modal.innerHTML = `
+      <div class="profile-completion-card" role="dialog" aria-modal="true" aria-labelledby="googleProfileTitle">
+        <div class="profile-completion-header">
+          <div class="profile-completion-avatar" id="googleProfileAvatar"></div>
+          <span class="profile-completion-badge">Google account connected</span>
+          <h3 id="googleProfileTitle">Finish your student profile</h3>
+          <p class="profile-completion-copy">You are signed in. Add the profile details we need for your account and leaderboard.</p>
+          <p class="profile-completion-email" id="googleProfileEmail"></p>
+        </div>
+
+        <form id="googleProfileForm" class="profile-completion-form" novalidate>
+          <div class="form-group">
+            <label for="googleProfileName">Full Name</label>
+            <div class="input-wrapper">
+              <i data-lucide="user" class="input-icon"></i>
+              <input type="text" id="googleProfileName" autocomplete="name" placeholder="Your full name" required>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="googleProfileUsername">Username (optional)</label>
+            <div class="input-wrapper">
+              <i data-lucide="at-sign" class="input-icon"></i>
+              <input type="text" id="googleProfileUsername" autocomplete="username" placeholder="e.g. khurshid102">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="googleProfileGroup">Group</label>
+            <div class="input-wrapper">
+              <i data-lucide="users" class="input-icon"></i>
+              <input type="text" id="googleProfileGroup" placeholder="Group A" required>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="googleProfilePhone">Phone Number (optional)</label>
+            <div class="input-wrapper">
+              <i data-lucide="phone" class="input-icon"></i>
+              <input type="tel" id="googleProfilePhone" autocomplete="tel" placeholder="e.g. +998 90 1234567">
+            </div>
+          </div>
+
+          <div class="profile-completion-actions">
+            <button type="button" class="profile-secondary-btn" id="googleProfileCancel">Sign out</button>
+            <button type="submit" class="reg-btn profile-completion-submit" id="googleProfileSave">Continue</button>
+          </div>
+        </form>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    const formEl = modal.querySelector("#googleProfileForm");
+    const avatarEl = modal.querySelector("#googleProfileAvatar");
+    const emailEl = modal.querySelector("#googleProfileEmail");
+    const cancelBtn = modal.querySelector("#googleProfileCancel");
+    const saveBtn = modal.querySelector("#googleProfileSave");
+    const nameEl = modal.querySelector("#googleProfileName");
+    const usernameEl = modal.querySelector("#googleProfileUsername");
+    const groupEl = modal.querySelector("#googleProfileGroup");
+    const phoneEl = modal.querySelector("#googleProfilePhone");
+
+    if (emailEl) {
+      emailEl.textContent = draft.email ? `Signed in as ${draft.email}` : "Signed in with Google";
+    }
+    if (nameEl) nameEl.value = draft.name;
+    if (usernameEl) {
+      usernameEl.value = sanitizeUsernameAutofillValue(draft.username);
+      bindUsernameFieldSanitizer(usernameEl);
+    }
+    if (groupEl) groupEl.value = draft.group;
+    if (phoneEl) phoneEl.value = draft.phone;
+
+    const refreshAvatar = () => {
+      renderGoogleCompletionAvatar(avatarEl, {
+        name: String(nameEl?.value || "").trim() || draft.name,
+        email: draft.email,
+        photoUrl: draft.photo_url,
+      });
+    };
+
+    refreshAvatar();
+    nameEl?.addEventListener("input", refreshAvatar);
+
+    const close = (value) => {
+      try { modal.remove(); } catch {}
+      resolve(value);
+    };
+
+    cancelBtn?.addEventListener("click", () => close(null));
+    modal.addEventListener("click", (event) => {
+      if (event.target === modal) close(null);
+    });
+
+    formEl?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      const fullName = String(nameEl?.value || "").trim();
+      const rawUsername = String(usernameEl?.value || "").trim();
+      const requestedUsername = rawUsername ? normalizeUsername(rawUsername) : "";
+      const selectedGroup = String(groupEl?.value || "").trim();
+      const requestedPhone = normalizePhone(phoneEl?.value || "");
+
+      if (!fullName) {
+        Toast.show("Please enter your full name.", "e", 3800);
+        nameEl?.focus();
+        return;
+      }
+      if (rawUsername && !isValidUsername(requestedUsername)) {
+        Toast.show("Username must be 3–20 chars: letters, numbers, dot, underscore.", "e", 4200);
+        usernameEl?.focus();
+        return;
+      }
+      if (!selectedGroup) {
+        Toast.show("Please enter your group.", "e", 3800);
+        groupEl?.focus();
+        return;
+      }
+      if (requestedPhone && !isValidPhone(requestedPhone)) {
+        Toast.show("Phone Number (optional) looks invalid.", "e", 3800);
+        phoneEl?.focus();
+        return;
+      }
+
+      const oldUsername = normalizeUsername(existingProfile?.username || "");
+      const oldPhoneNorm = normalizePhone(existingProfile?.phone || "");
+      const oldPhoneKey = phoneKey(oldPhoneNorm);
+
+      const finalUsername = requestedUsername || oldUsername || "";
+      const finalPhoneNorm = requestedPhone || oldPhoneNorm || "";
+      const finalPhoneKey = finalPhoneNorm ? phoneKey(finalPhoneNorm) : "";
+      const { first_name, last_name } = splitFullName(fullName);
+
+      const profilePatch = {
+        first_name,
+        last_name,
+        name: fullName,
+        email: user.email || draft.email || "",
+        group_name: selectedGroup,
+        group: selectedGroup,
+        photo_url: draft.photo_url || getProfilePhoto(existingProfile, user),
+      };
+
+      if (finalUsername || !existingProfile?.username) {
+        profilePatch.username = finalUsername;
+      }
+      if (finalPhoneNorm || !existingProfile?.phone) {
+        profilePatch.phone = finalPhoneNorm || "";
+      }
+
+      const previousSaveText = saveBtn?.textContent || "Continue";
+      let claimedUsername = "";
+      let claimedPhoneKey = "";
+      let profileCommitted = false;
+
+      if (saveBtn) {
+        saveBtn.textContent = "Saving...";
+        saveBtn.disabled = true;
+      }
+      if (cancelBtn) cancelBtn.disabled = true;
+
+      try {
+        if (finalUsername && finalUsername !== oldUsername) {
+          await claimUsernameOrThrow(finalUsername, user.uid);
+          claimedUsername = finalUsername;
+        }
+
+        if (finalPhoneKey && finalPhoneKey !== oldPhoneKey) {
+          await claimPhoneOrThrow(finalPhoneKey, user.uid);
+          claimedPhoneKey = finalPhoneKey;
+        }
+
+        if (fullName !== String(user.displayName || "").trim()) {
+          try {
+            await updateProfile(user, { displayName: fullName });
+          } catch {}
+        }
+
+        const result = await ensureStudentRecord(user, profilePatch);
+        profileCommitted = true;
+
+        if (oldUsername && oldUsername !== finalUsername) {
+          await releaseUsernameIfOwned(oldUsername, user.uid);
+        }
+        if (oldPhoneKey && oldPhoneKey !== finalPhoneKey) {
+          await releasePhoneIfOwned(oldPhoneKey, user.uid);
+        }
+
+        writeAuthHint(user, result?.profile || profilePatch);
+
+        if (options.shouldNotify) {
+          try {
+            const msg = buildTelegramRegistrationMsg({
+              uid: user.uid,
+              fullName,
+              usernameLower: finalUsername,
+              phone: finalPhoneNorm || "",
+              group: selectedGroup,
+            });
+            await tgSendMessage(msg);
+          } catch (notifyError) {
+            console.warn("Telegram notify failed:", notifyError?.message || notifyError);
+          }
+        }
+
+        close(result?.profile || profilePatch);
+      } catch (error) {
+        if (!profileCommitted) {
+          if (claimedUsername) {
+            await releaseUsernameIfOwned(claimedUsername, user.uid);
+          }
+          if (claimedPhoneKey && claimedPhoneKey !== oldPhoneKey) {
+            await releasePhoneIfOwned(claimedPhoneKey, user.uid);
+          }
+        }
+
+        console.error(error);
+        Toast.show(authErrorToHuman(error), "e", 4200);
+
+        if (saveBtn) {
+          saveBtn.textContent = previousSaveText;
+          saveBtn.disabled = false;
+        }
+        if (cancelBtn) cancelBtn.disabled = false;
+      }
+    });
+
+    if (window.lucide?.createIcons) window.lucide.createIcons();
+
+    setTimeout(() => {
+      if (!draft.name) {
+        nameEl?.focus();
+        return;
+      }
+      if (!draft.group) {
+        groupEl?.focus();
+        return;
+      }
+      saveBtn?.focus();
+    }, 80);
+  });
+}
+
 
 googleBtn?.addEventListener("click", async () => {
-  
   isSubmitting = true;
   googleBtn.disabled = true;
 
   try {
-    
     await setPersistence(auth, browserLocalPersistence);
-
-    
-    let firstName = "";
-    let lastName = "";
-    let selectedGroup = "";
-    let phoneExtraNorm = "";
-    if (!isLoginMode) {
-      firstName = String(firstNameInput?.value || "").trim();
-      lastName = String(lastNameInput?.value || "").trim();
-      selectedGroup = String(groupInput?.value || "").trim();
-      phoneExtraNorm = normalizePhone(phoneInput?.value || "");
-
-      if (!firstName || !lastName) {
-        Toast.show("Please enter your first & last name before continuing with Google.", "e", 4200);
-        return;
-      }
-      if (!selectedGroup) {
-        Toast.show("Please enter your group before continuing with Google.", "e", 4200);
-        return;
-      }
-      if (phoneExtraNorm && !isValidPhone(phoneExtraNorm)) {
-        Toast.show("Phone Number (optional) looks invalid.", "e", 4200);
-        return;
-      }
-    }
 
     const provider = new GoogleAuthProvider();
     const res = await signInWithPopup(auth, provider);
     const user = res?.user;
     if (!user) throw new Error("Google sign-in failed");
 
-    
-    if (!isLoginMode) {
-      const fullName = buildFullName(firstName, lastName);
-      if (fullName) {
-        try { await updateProfile(user, { displayName: fullName }); } catch {}
-      }
+    const existingProfileSnap = await get(studentProfileRef(user.uid));
+    const existingProfile = existingProfileSnap.exists()
+      ? (existingProfileSnap.val() || {})
+      : null;
 
-      
-      if (phoneExtraNorm) {
-        await claimPhoneOrThrow(phoneKey(phoneExtraNorm), user.uid);
-      }
-
-      await ensureStudentRecord(user, {
-        username: "", 
-        first_name: firstName,
-        last_name: lastName,
-        name: fullName,
-        email: user.email || "",
-        phone: phoneExtraNorm || "",
-        group_name: selectedGroup,
-        group: selectedGroup,
-      });
-      writeAuthHint(user, {
-        name: fullName,
-        email: user.email || "",
-        group_name: selectedGroup,
-        group: selectedGroup,
+    if (!existingProfile || needsGoogleProfileCompletion(existingProfile, user)) {
+      const completedProfile = await promptForGoogleProfile(user, existingProfile || {}, {
+        shouldNotify: !existingProfile,
       });
 
-      
-      try {
-        const msg = buildTelegramRegistrationMsg({
-          uid: user.uid,
-          fullName,
-          usernameLower: "",
-          phone: phoneExtraNorm || "",
-          group: selectedGroup,
-        });
-        await tgSendMessage(msg);
-      } catch (e) {
-        console.warn("Telegram notify failed:", e?.message || e);
+      if (!completedProfile) {
+        await signOut(auth);
+        clearAuthHint();
+        showSignedOutState();
+        return;
       }
     } else {
-      
-      await ensureStudentRecord(user, { email: user.email || "" });
-      writeAuthHint(user, { email: user.email || "" });
+      const result = await ensureStudentRecord(user, {
+        email: user.email || "",
+        name: deriveDisplayName(user, existingProfile, deriveNameFromEmail(user.email || "")),
+        photo_url: getProfilePhoto(existingProfile, user),
+      });
+      writeAuthHint(user, result?.profile || existingProfile);
     }
 
     Toast.show("Signed in with Google ✅", "s");
@@ -732,15 +1144,24 @@ form?.addEventListener("submit", async (e) => {
   try {
     if (!isLoginMode) {
       const cred = await createUserWithEmailAndPassword(auth, email, password);
+      let claimedUsername = "";
+      let claimedPhoneKey = "";
 
       try {
         await claimUsernameOrThrow(usernameLower, cred.user.uid);
+        claimedUsername = usernameLower;
 
-        
         if (phoneToStoreNorm) {
           await claimPhoneOrThrow(phoneKey(phoneToStoreNorm), cred.user.uid);
+          claimedPhoneKey = phoneKey(phoneToStoreNorm);
         }
       } catch (e2) {
+        if (claimedUsername) {
+          await releaseUsernameIfOwned(claimedUsername, cred.user.uid);
+        }
+        if (claimedPhoneKey) {
+          await releasePhoneIfOwned(claimedPhoneKey, cred.user.uid);
+        }
         try { await deleteUser(cred.user); } catch {}
         throw e2;
       }
