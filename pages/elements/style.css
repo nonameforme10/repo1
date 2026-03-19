@@ -483,6 +483,11 @@ button.btn-outline {
     cursor: not-allowed;
 }
 
+.install-app-button[hidden],
+.install-app-hint[hidden] {
+    display: none !important;
+}
+
 .install-app-hint {
     margin: 18px auto 0;
     max-width: 720px;
@@ -493,10 +498,10 @@ button.btn-outline {
 
 .pwa-promo {
     position: fixed;
-    right: 24px;
-    bottom: 24px;
-    width: min(380px, calc(100vw - 32px));
-    z-index: 1800;
+    right: 16px;
+    bottom: 16px;
+    width: min(332px, calc(100vw - 20px));
+    z-index: 1600;
 }
 
 .pwa-promo[hidden] {
@@ -506,30 +511,54 @@ button.btn-outline {
 .pwa-promo-inner {
     position: relative;
     overflow: hidden;
-    border-radius: 24px;
-    padding: 22px;
+    isolation: isolate;
+    border-radius: 20px;
+    padding: 16px;
     background:
-        radial-gradient(circle at top right, rgba(251, 191, 36, 0.28), transparent 34%),
-        linear-gradient(145deg, rgba(15, 23, 42, 0.96), rgba(30, 41, 59, 0.94));
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    box-shadow: 0 30px 80px rgba(15, 23, 42, 0.35);
-    backdrop-filter: blur(18px);
-    animation: pwaPromoReveal 0.5s ease;
+        radial-gradient(circle at top right, rgba(251, 191, 36, 0.08), transparent 34%),
+        radial-gradient(circle at bottom left, rgba(96, 165, 250, 0.06), transparent 40%),
+        linear-gradient(160deg, rgba(15, 23, 42, 0.98), rgba(30, 41, 59, 0.98));
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 18px 34px rgba(2, 6, 23, 0.3);
+    backdrop-filter: blur(10px);
+    animation: pwaPromoReveal 0.3s ease-out;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .pwa-promo-inner::before {
     content: '';
     position: absolute;
-    inset: auto -35% 12% 35%;
-    height: 130px;
-    background: radial-gradient(circle, rgba(255, 255, 255, 0.18), transparent 62%);
+    inset: auto 22% 12% -10%;
+    height: 120px;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.08), transparent 68%);
+    opacity: 0.45;
+    pointer-events: none;
+    animation: pwaPromoGlow 14s ease-in-out infinite;
+}
+
+.pwa-promo-inner::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.015), transparent 40%);
     pointer-events: none;
 }
 
+.pwa-promo:hover .pwa-promo-inner {
+    border-color: rgba(255, 255, 255, 0.14);
+    box-shadow: 0 22px 40px rgba(2, 6, 23, 0.34);
+}
+
+.pwa-promo-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
 .pwa-promo-close {
-    position: absolute;
-    top: 14px;
-    right: 14px;
+    position: relative;
     width: 34px;
     height: 34px;
     border: none;
@@ -539,89 +568,153 @@ button.btn-outline {
     cursor: pointer;
     color: #e2e8f0;
     background: rgba(255, 255, 255, 0.08);
+    transition: background 0.2s ease;
 }
 
 .pwa-promo-close:hover {
-    background: rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.14);
 }
 
 .pwa-promo-eyebrow {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    margin-bottom: 16px;
-    padding: 8px 12px;
+    min-height: 30px;
+    padding: 0 10px;
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.08);
-    color: #f8fafc;
-    font-size: 12px;
+    background: rgba(255, 255, 255, 0.06);
+    color: #d6b25e;
+    font-size: 11px;
     font-weight: 700;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
 }
 
-.pwa-promo-head {
+.pwa-promo-eyebrow::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: currentColor;
+}
+
+.pwa-promo-main {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.pwa-promo-hero {
     display: grid;
-    grid-template-columns: auto 1fr;
-    gap: 14px;
+    grid-template-columns: minmax(0, 1fr) 58px;
+    gap: 10px;
     align-items: start;
 }
 
-.pwa-promo-icon {
-    width: 48px;
-    height: 48px;
-    border-radius: 16px;
-    display: grid;
-    place-items: center;
-    color: #111827;
-    background: linear-gradient(135deg, #fbbf24, #f59e0b);
-    box-shadow: 0 12px 30px rgba(245, 158, 11, 0.35);
+.pwa-promo-copy {
+    text-align: left;
+    position: relative;
+    z-index: 1;
 }
 
-.pwa-promo-head h3 {
+.pwa-promo-copy h3 {
     margin: 0;
     color: #ffffff;
-    font-size: 24px;
-    line-height: 1.1;
+    font-size: 19px;
+    line-height: 1.2;
 }
 
-.pwa-promo-head p {
-    margin: 10px 0 0;
+.pwa-promo-copy p {
+    margin: 8px 0 0;
     color: #cbd5e1;
-    font-size: 14px;
-    line-height: 1.65;
+    font-size: 12.5px;
+    line-height: 1.55;
+}
+
+.pwa-promo-visual {
+    position: relative;
+    width: 58px;
+    height: 58px;
+    justify-self: end;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    border-radius: 16px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03));
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.08),
+        0 12px 20px rgba(2, 6, 23, 0.22);
+}
+
+.pwa-promo-visual::before {
+    content: '';
+    position: absolute;
+    inset: 10px;
+    border-radius: 14px;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.08), transparent 72%);
+    opacity: 0.75;
+}
+
+.pwa-promo-gif {
+    position: relative;
+    z-index: 1;
+    display: block;
+    width: 42px !important;
+    height: 42px !important;
+    max-width: 42px;
+    max-height: 42px;
+    object-fit: contain;
+    filter: drop-shadow(0 8px 12px rgba(15, 23, 42, 0.24));
+    animation: pwaPromoFloat 8s ease-in-out infinite;
+}
+
+.pwa-promo-orbit {
+    position: absolute;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    opacity: 0.45;
+}
+
+.pwa-promo-orbit-one {
+    inset: 6px;
+}
+
+.pwa-promo-orbit-two {
+    inset: 14px;
 }
 
 .pwa-promo-features {
     display: flex;
     flex-wrap: wrap;
-    gap: 10px;
-    margin-top: 18px;
+    gap: 8px;
 }
 
 .pwa-promo-chip {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    padding: 10px 12px;
+    padding: 8px 10px;
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
     color: #f8fafc;
-    font-size: 13px;
+    font-size: 11.5px;
     font-weight: 600;
 }
 
 .pwa-promo-actions {
     display: flex;
-    gap: 12px;
-    margin-top: 20px;
+    gap: 8px;
+    min-width: 0;
 }
 
 .pwa-promo-primary,
 .pwa-promo-secondary {
     font: inherit;
     border-radius: 14px;
-    min-height: 50px;
+    min-height: 42px;
+    transition: background 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
 .pwa-promo-primary {
@@ -634,12 +727,12 @@ button.btn-outline {
     cursor: pointer;
     font-weight: 700;
     color: #111827;
-    background: linear-gradient(135deg, #f8fafc, #fbbf24);
-    box-shadow: 0 14px 30px rgba(248, 250, 252, 0.16);
+    background: linear-gradient(135deg, #f5f7fb, #e8edf5);
+    box-shadow: 0 8px 16px rgba(15, 23, 42, 0.18);
 }
 
 .pwa-promo-primary:hover {
-    transform: translateY(-1px);
+    box-shadow: 0 10px 18px rgba(15, 23, 42, 0.2);
 }
 
 .pwa-promo-primary[disabled] {
@@ -661,14 +754,72 @@ button.btn-outline {
     background: rgba(255, 255, 255, 0.12);
 }
 
+.pwa-promo[data-promo-state^="update"] .pwa-promo-eyebrow,
+.pwa-promo[data-promo-state="updating"] .pwa-promo-eyebrow {
+    background: rgba(96, 165, 250, 0.08);
+    color: #b6d1f3;
+}
+
+.pwa-promo[data-promo-state^="update"] .pwa-promo-orbit,
+.pwa-promo[data-promo-state="updating"] .pwa-promo-orbit {
+    border-color: rgba(96, 165, 250, 0.14);
+}
+
+.pwa-promo[data-promo-state="up-to-date"] .pwa-promo-eyebrow,
+.pwa-promo[data-promo-state="install-accepted"] .pwa-promo-eyebrow {
+    background: rgba(74, 222, 128, 0.08);
+    color: #acd9b5;
+}
+
+.pwa-promo[data-promo-state="up-to-date"] .pwa-promo-orbit,
+.pwa-promo[data-promo-state="install-accepted"] .pwa-promo-orbit {
+    border-color: rgba(74, 222, 128, 0.14);
+}
+
 @keyframes pwaPromoReveal {
     from {
         opacity: 0;
-        transform: translateY(18px) scale(0.96);
+        transform: translateY(10px);
     }
     to {
         opacity: 1;
-        transform: translateY(0) scale(1);
+        transform: translateY(0);
+    }
+}
+
+@keyframes pwaPromoGlow {
+    0%, 100% {
+        transform: translate3d(0, 0, 0) scale(1);
+        opacity: 0.35;
+    }
+    50% {
+        transform: translate3d(4px, -4px, 0) scale(1.03);
+        opacity: 0.5;
+    }
+}
+
+@keyframes pwaPromoFloat {
+    0%, 100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-3px);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pwa-promo-inner,
+    .pwa-promo-inner::before,
+    .pwa-promo-gif {
+        animation: none !important;
+    }
+
+    .pwa-promo-inner,
+    .pwa-promo-primary,
+    .pwa-promo-secondary,
+    .pwa-promo-close,
+    .pwa-promo-inner::after {
+        transition: none !important;
     }
 }
 
@@ -1287,27 +1438,66 @@ footer {
         gap: 32px;
     }
 
-    .pwa-promo {
-        right: 16px;
-        bottom: 16px;
-        width: min(420px, calc(100vw - 24px));
-    }
-
     .pwa-promo-inner {
-        border-radius: 22px;
-        padding: 20px;
+        border-radius: 18px;
+        padding: 14px;
     }
 
-    .pwa-promo-head h3 {
-        font-size: 22px;
+    .pwa-promo {
+        right: 12px;
+        bottom: 12px;
+        width: min(304px, calc(100vw - 16px));
     }
 
-    .pwa-promo-actions {
-        flex-direction: column;
+    .pwa-promo-inner::before,
+    .pwa-promo-gif {
+        animation: none;
     }
 
+    .pwa-promo-orbit {
+        display: none;
+    }
+
+    .pwa-promo-hero {
+        grid-template-columns: minmax(0, 1fr) 52px;
+        gap: 8px;
+    }
+
+    .pwa-promo-visual {
+        width: 52px;
+        height: 52px;
+        border-radius: 14px;
+    }
+
+    .pwa-promo-gif {
+        width: 34px !important;
+        height: 34px !important;
+        max-width: 34px;
+        max-height: 34px;
+    }
+
+    .pwa-promo-copy h3 {
+        font-size: 17px;
+    }
+
+    .pwa-promo-copy p {
+        font-size: 12px;
+        line-height: 1.45;
+    }
+
+    .pwa-promo-features {
+        gap: 6px;
+    }
+
+    .pwa-promo-chip {
+        padding: 7px 9px;
+        font-size: 11px;
+    }
+
+    .pwa-promo-primary,
     .pwa-promo-secondary {
-        width: 100%;
+        min-height: 38px;
+        font-size: 14px;
     }
     
     .footer-links {
@@ -1398,33 +1588,39 @@ footer {
         font-size: 8px;
     }
 
+    .pwa-promo-top {
+        align-items: flex-start;
+        margin-bottom: 10px;
+    }
+
     .pwa-promo {
-        left: 12px;
-        right: 12px;
-        bottom: 12px;
-        width: auto;
+        left: auto;
+        right: 10px;
+        bottom: 10px;
+        width: min(286px, calc(100vw - 16px));
     }
 
-    .pwa-promo-inner {
-        padding: 18px;
+    .pwa-promo-copy h3 {
+        font-size: 16px;
     }
 
-    .pwa-promo-head {
-        grid-template-columns: 1fr;
+    .pwa-promo-copy p {
+        font-size: 11.5px;
     }
 
-    .pwa-promo-icon {
-        width: 42px;
-        height: 42px;
+    .pwa-promo-actions {
+        gap: 6px;
     }
 
-    .pwa-promo-head h3 {
-        font-size: 20px;
+    .pwa-promo-primary,
+    .pwa-promo-secondary {
+        min-height: 36px;
+        font-size: 13px;
     }
 
     .pwa-promo-chip {
-        width: 100%;
-        justify-content: center;
+        font-size: 10.5px;
+        padding: 6px 8px;
     }
     .gif-video {
     max-width: 400px;

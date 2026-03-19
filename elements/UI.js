@@ -208,6 +208,9 @@
   const LOG = false;
   const UPDATE_CHECK_EVERY_MIN = 30;
   const UPDATE_WAIT_TIMEOUT_MS = 9000;
+  const SILENT_UPDATE_CHECK_MIN_INTERVAL_MS = 60 * 1000;
+  const STARTUP_SILENT_UPDATE_DELAY_MS = 2000;
+  const FORCE_REFRESH_PARAM = "eduventure-refresh";
   const SW_URL = "/sw.js";
   const SW_SCOPE = "/";
 
@@ -228,7 +231,10 @@
     registerPromise: null,
     intervalId: 0,
     checking: false,
+    silentChecking: false,
+    lastSilentCheckAt: 0,
     updating: false,
+    activationQueued: false,
     reloadOnControllerChange: false,
     reloadTriggered: false,
   };
@@ -254,6 +260,46 @@
     return detail;
   }
 
+  function buildHardRefreshUrl() {
+    const url = new URL(window.location.href);
+    url.searchParams.set(FORCE_REFRESH_PARAM, String(Date.now()));
+    return url.toString();
+  }
+
+  function clearHardRefreshMarker() {
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has(FORCE_REFRESH_PARAM)) return;
+
+    url.searchParams.delete(FORCE_REFRESH_PARAM);
+
+    try {
+      history.replaceState(history.state, "", `${url.pathname}${url.search}${url.hash}`);
+    } catch {}
+  }
+
+  function triggerHardRefresh() {
+    if (runtime.reloadTriggered) return;
+
+    runtime.reloadTriggered = true;
+    runtime.reloadOnControllerChange = false;
+    window.location.replace(buildHardRefreshUrl());
+  }
+
+  function scheduleWaitingWorkerActivation(reg = runtime.registration) {
+    if (!reg?.waiting || runtime.updating || runtime.activationQueued) return;
+
+    runtime.activationQueued = true;
+    window.setTimeout(() => {
+      runtime.activationQueued = false;
+
+      if (!reg?.waiting || runtime.updating) return;
+
+      activateWaitingWorker(reg).catch((err) => {
+        warn("Automatic SW activation failed:", err);
+      });
+    }, 0);
+  }
+
   function bindInstallingWorker(worker) {
     if (!worker || worker.__EDUVENTURE_BOUND__) return;
 
@@ -264,6 +310,7 @@
       if (worker.state === "installed") {
         if (navigator.serviceWorker.controller) {
           log("SW update installed and is ready to apply.");
+          scheduleWaitingWorkerActivation(runtime.registration);
         } else {
           log("SW installed for first time.");
         }
@@ -294,6 +341,10 @@
       bindInstallingWorker(reg.installing);
     }
 
+    if (reg.waiting) {
+      scheduleWaitingWorkerActivation(reg);
+    }
+
     emitState();
     return reg;
   }
@@ -310,6 +361,46 @@
         .then(() => rememberRegistration(reg))
         .catch(() => {});
     }, UPDATE_CHECK_EVERY_MIN * 60 * 1000);
+  }
+
+  async function checkForUpdateSilently(options = {}) {
+    const force = !!options.force;
+    const now = Date.now();
+
+    if (runtime.silentChecking || runtime.checking || runtime.updating) {
+      return { outcome: "busy" };
+    }
+
+    if (
+      !force &&
+      runtime.lastSilentCheckAt &&
+      now - runtime.lastSilentCheckAt < SILENT_UPDATE_CHECK_MIN_INTERVAL_MS
+    ) {
+      return { outcome: "throttled" };
+    }
+
+    runtime.silentChecking = true;
+    runtime.lastSilentCheckAt = now;
+
+    try {
+      let reg = await ensureRegistration();
+      reg = rememberRegistration(reg);
+
+      if (reg.waiting) {
+        return activateWaitingWorker(reg);
+      }
+
+      await reg.update();
+      rememberRegistration(reg);
+
+      return reg.waiting ? activateWaitingWorker(reg) : { outcome: "checked" };
+    } catch (err) {
+      warn("Silent update check failed:", err);
+      return { outcome: "error", error: err };
+    } finally {
+      runtime.silentChecking = false;
+      emitState();
+    }
   }
 
   function waitForControllerChange() {
@@ -426,8 +517,7 @@
 
       const changed = await controllerChange;
       if (!changed && runtime.reloadOnControllerChange && !runtime.reloadTriggered) {
-        runtime.reloadTriggered = true;
-        window.location.reload();
+        triggerHardRefresh();
       }
 
       return { outcome: "updated" };
@@ -513,6 +603,7 @@
   const api = {
     getState,
     ensureRegistration,
+    checkForUpdateSilently,
     downloadUpdate,
   };
 
@@ -534,17 +625,24 @@
     return;
   }
 
+  clearHardRefreshMarker();
+
   navigator.serviceWorker.addEventListener("controllerchange", () => {
     emitState();
 
     if (runtime.reloadOnControllerChange && !runtime.reloadTriggered) {
-      runtime.reloadTriggered = true;
-      window.location.reload();
+      triggerHardRefresh();
     }
   });
 
   function register() {
-    ensureRegistration().catch(() => {});
+    ensureRegistration()
+      .then(() => {
+        window.setTimeout(() => {
+          checkForUpdateSilently({ force: true }).catch(() => {});
+        }, STARTUP_SILENT_UPDATE_DELAY_MS);
+      })
+      .catch(() => {});
   }
 
   if (document.readyState === "loading") {
@@ -552,6 +650,20 @@
   } else {
     register();
   }
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      checkForUpdateSilently().catch(() => {});
+    }
+  });
+
+  window.addEventListener("focus", () => {
+    checkForUpdateSilently().catch(() => {});
+  });
+
+  window.addEventListener("online", () => {
+    checkForUpdateSilently({ force: true }).catch(() => {});
+  });
 })();
 
 (() => {
