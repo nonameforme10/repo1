@@ -5,7 +5,7 @@ const IS_SERVICE_WORKER_CONTEXT =
   self instanceof ServiceWorkerGlobalScope;
 
 if (IS_SERVICE_WORKER_CONTEXT) {
-  const VERSION = "v9.3.6";
+  const VERSION = "v10";
   const CORE_CACHE = `eduventure-core-${VERSION}`;
   const RUNTIME_CACHE = `eduventure-runtime-${VERSION}`;
   const MAX_RUNTIME_ENTRIES = 120;
