@@ -25,7 +25,36 @@
     const updateUI = (state = window.EDUVENTURE_PWA?.getState?.() || {}) => {
       if (state.installed) {
         button.hidden = false;
-        button.disabled = true;
+        button.disabled = !state.canUpdate || state.checkingForUpdate || state.updating;
+
+        if (state.updating) {
+          label.textContent = "Updating app";
+          setHint("Downloading the latest update. EduVenture will refresh when it is ready.");
+          refreshIcons();
+          return;
+        }
+
+        if (state.checkingForUpdate) {
+          label.textContent = "Checking updates";
+          setHint("Checking for a newer EduVenture build for this installed app.");
+          refreshIcons();
+          return;
+        }
+
+        if (state.updateAvailable) {
+          label.textContent = "Download update";
+          setHint("A new EduVenture version is ready. Download it to update the installed app.");
+          refreshIcons();
+          return;
+        }
+
+        if (state.canUpdate) {
+          label.textContent = "Download updates";
+          setHint("EduVenture is installed. Use this button anytime to check for the latest app update.");
+          refreshIcons();
+          return;
+        }
+
         label.textContent = "Installed";
         setHint("EduVenture is already running like an app on this device.");
         refreshIcons();
@@ -59,6 +88,33 @@
     button.addEventListener("click", async () => {
       const api = window.EDUVENTURE_PWA;
       if (!api || button.disabled) return;
+
+      const state = api.getState?.() || {};
+
+      if (state.installed) {
+        const result = await api.downloadUpdate();
+
+        if (result?.outcome === "updated") {
+          setHint("Downloading the newest version now. EduVenture will refresh once the update is applied.");
+          updateUI(api.getState?.() || {});
+          return;
+        }
+
+        if (result?.outcome === "no-update") {
+          setHint("EduVenture is already up to date.");
+        } else if (result?.outcome === "failed") {
+          setHint("The update could not be prepared. Please try again in a moment.");
+        } else if (result?.reason === "not-installed") {
+          setHint("Install EduVenture first, then you can download app updates here.");
+        } else if (result?.reason === "sw-unavailable") {
+          setHint("The update service is not ready yet. Reload the page and try again.");
+        } else if (result?.outcome === "error") {
+          setHint("Couldn't check for updates right now. Please try again when your connection is stable.");
+        }
+
+        updateUI(api.getState?.() || {});
+        return;
+      }
 
       const result = await api.promptInstall();
 

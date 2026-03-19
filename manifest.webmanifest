@@ -25,21 +25,5 @@
       "sizes": "180x180",
       "type": "image/png"
     }
-  ],
-  "screenshots": [
-    {
-      "src": "/assets/pwa-screenshot-desktop.png",
-      "sizes": "1280x720",
-      "type": "image/png",
-      "form_factor": "wide",
-      "label": "EduVenture home page on desktop"
-    },
-    {
-      "src": "/assets/pwa-screenshot-mobile.png",
-      "sizes": "390x844",
-      "type": "image/png",
-      "form_factor": "narrow",
-      "label": "EduVenture home page on mobile"
-    }
   ]
 }

@@ -207,6 +207,7 @@
 
   const LOG = false;
   const UPDATE_CHECK_EVERY_MIN = 30;
+  const UPDATE_WAIT_TIMEOUT_MS = 9000;
   const SW_URL = "/sw.js";
   const SW_SCOPE = "/";
 
@@ -221,6 +222,302 @@
     location.pathname.startsWith("/pages/auth/") ||
     location.pathname.startsWith("/auth/") ||
     location.pathname.startsWith("/__/auth/");
+
+  const runtime = {
+    registration: null,
+    registerPromise: null,
+    intervalId: 0,
+    checking: false,
+    updating: false,
+    reloadOnControllerChange: false,
+    reloadTriggered: false,
+  };
+
+  function getState() {
+    const reg = runtime.registration;
+
+    return {
+      supported: true,
+      registered: !!reg,
+      ready: !!reg?.active,
+      hasController: !!navigator.serviceWorker.controller,
+      checking: runtime.checking,
+      updating: runtime.updating,
+      updateReady: !!reg?.waiting,
+      installing: !!reg?.installing && reg.installing.state !== "redundant",
+    };
+  }
+
+  function emitState() {
+    const detail = getState();
+    window.dispatchEvent(new CustomEvent("eduventure:sw-state", { detail }));
+    return detail;
+  }
+
+  function bindInstallingWorker(worker) {
+    if (!worker || worker.__EDUVENTURE_BOUND__) return;
+
+    worker.__EDUVENTURE_BOUND__ = true;
+    worker.addEventListener("statechange", () => {
+      emitState();
+
+      if (worker.state === "installed") {
+        if (navigator.serviceWorker.controller) {
+          log("SW update installed and is ready to apply.");
+        } else {
+          log("SW installed for first time.");
+        }
+        return;
+      }
+
+      if (worker.state === "redundant") {
+        warn("SW install became redundant.");
+      }
+    });
+  }
+
+  function rememberRegistration(reg) {
+    if (!reg) return null;
+
+    runtime.registration = reg;
+
+    if (!reg.__EDUVENTURE_BOUND__) {
+      reg.__EDUVENTURE_BOUND__ = true;
+      reg.addEventListener("updatefound", () => {
+        log("SW update found.");
+        bindInstallingWorker(reg.installing);
+        emitState();
+      });
+    }
+
+    if (reg.installing) {
+      bindInstallingWorker(reg.installing);
+    }
+
+    emitState();
+    return reg;
+  }
+
+  function startPeriodicUpdateChecks() {
+    if (runtime.intervalId || UPDATE_CHECK_EVERY_MIN <= 0) return;
+
+    runtime.intervalId = window.setInterval(() => {
+      const reg = runtime.registration;
+      if (!reg) return;
+
+      reg
+        .update()
+        .then(() => rememberRegistration(reg))
+        .catch(() => {});
+    }, UPDATE_CHECK_EVERY_MIN * 60 * 1000);
+  }
+
+  function waitForControllerChange() {
+    return new Promise((resolve) => {
+      let settled = false;
+
+      const finish = (changed) => {
+        if (settled) return;
+        settled = true;
+        navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
+        window.clearTimeout(timeoutId);
+        resolve(changed);
+      };
+
+      const onControllerChange = () => finish(true);
+      const timeoutId = window.setTimeout(() => finish(false), UPDATE_WAIT_TIMEOUT_MS);
+
+      navigator.serviceWorker.addEventListener("controllerchange", onControllerChange, {
+        once: true,
+      });
+    });
+  }
+
+  function waitForUpdateResult(reg) {
+    return new Promise((resolve) => {
+      let settled = false;
+      let trackedWorker = null;
+      let timeoutId = 0;
+
+      const finish = (outcome) => {
+        if (settled) return;
+        settled = true;
+        reg.removeEventListener("updatefound", onUpdateFound);
+        if (trackedWorker) {
+          trackedWorker.removeEventListener("statechange", onWorkerStateChange);
+        }
+        window.clearTimeout(timeoutId);
+        resolve(outcome);
+      };
+
+      const onWorkerStateChange = () => {
+        emitState();
+
+        if (!trackedWorker) return;
+
+        if (trackedWorker.state === "installed") {
+          finish(navigator.serviceWorker.controller ? "update-ready" : "installed");
+          return;
+        }
+
+        if (trackedWorker.state === "redundant") {
+          finish("failed");
+        }
+      };
+
+      const trackWorker = (worker) => {
+        if (!worker || worker === trackedWorker) return;
+
+        if (trackedWorker) {
+          trackedWorker.removeEventListener("statechange", onWorkerStateChange);
+        }
+
+        trackedWorker = worker;
+        bindInstallingWorker(worker);
+        worker.addEventListener("statechange", onWorkerStateChange);
+      };
+
+      const onUpdateFound = () => {
+        trackWorker(reg.installing);
+        emitState();
+      };
+
+      reg.addEventListener("updatefound", onUpdateFound);
+
+      if (reg.waiting) {
+        finish("update-ready");
+        return;
+      }
+
+      if (reg.installing) {
+        trackWorker(reg.installing);
+      }
+
+      timeoutId = window.setTimeout(() => {
+        if (reg.waiting) {
+          finish("update-ready");
+          return;
+        }
+
+        if (trackedWorker?.state === "installed") {
+          finish(navigator.serviceWorker.controller ? "update-ready" : "installed");
+          return;
+        }
+
+        finish("no-update");
+      }, UPDATE_WAIT_TIMEOUT_MS);
+    });
+  }
+
+  async function activateWaitingWorker(reg = runtime.registration) {
+    const waiting = reg?.waiting;
+    if (!waiting) {
+      return { outcome: "no-update" };
+    }
+
+    runtime.updating = true;
+    runtime.reloadOnControllerChange = true;
+    runtime.reloadTriggered = false;
+    emitState();
+
+    try {
+      const controllerChange = waitForControllerChange();
+      waiting.postMessage({ type: "SKIP_WAITING" });
+
+      const changed = await controllerChange;
+      if (!changed && runtime.reloadOnControllerChange && !runtime.reloadTriggered) {
+        runtime.reloadTriggered = true;
+        window.location.reload();
+      }
+
+      return { outcome: "updated" };
+    } catch (err) {
+      warn("Could not activate waiting service worker:", err);
+      return { outcome: "error", error: err };
+    } finally {
+      runtime.updating = false;
+      emitState();
+    }
+  }
+
+  async function ensureRegistration() {
+    if (runtime.registration) {
+      return rememberRegistration(runtime.registration);
+    }
+
+    if (runtime.registerPromise) {
+      return runtime.registerPromise;
+    }
+
+    runtime.registerPromise = navigator.serviceWorker
+      .register(SW_URL, { scope: SW_SCOPE })
+      .then((reg) => {
+        rememberRegistration(reg);
+        startPeriodicUpdateChecks();
+        return reg;
+      })
+      .catch((err) => {
+        warn("Registration failed:", err);
+        emitState();
+        throw err;
+      })
+      .finally(() => {
+        if (!runtime.registration) {
+          runtime.registerPromise = null;
+        }
+      });
+
+    return runtime.registerPromise;
+  }
+
+  async function downloadUpdate() {
+    let reg;
+
+    try {
+      reg = await ensureRegistration();
+    } catch (err) {
+      return { outcome: "error", error: err };
+    }
+
+    reg = rememberRegistration(reg);
+
+    if (reg.waiting) {
+      return activateWaitingWorker(reg);
+    }
+
+    runtime.checking = true;
+    emitState();
+
+    try {
+      const waitForResult = waitForUpdateResult(reg);
+      await reg.update();
+      rememberRegistration(reg);
+
+      const outcome = await waitForResult;
+      if (outcome === "update-ready") {
+        runtime.checking = false;
+        emitState();
+        return activateWaitingWorker(reg);
+      }
+
+      return { outcome };
+    } catch (err) {
+      warn("Update check failed:", err);
+      return { outcome: "error", error: err };
+    } finally {
+      runtime.checking = false;
+      emitState();
+    }
+  }
+
+  const api = {
+    getState,
+    ensureRegistration,
+    downloadUpdate,
+  };
+
+  window.__EDUVENTURE_SW_UPDATES__ = api;
+  window.EDUVENTURE_SW_UPDATES = api;
 
   if (!("serviceWorker" in navigator)) {
     warn("Service workers not supported in this browser.");
@@ -237,36 +534,17 @@
     return;
   }
 
-  async function register() {
-    try {
-      const reg = await navigator.serviceWorker.register(SW_URL, { scope: SW_SCOPE });
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    emitState();
 
-      if (reg.waiting) {
-        log("SW update is waiting and will activate on a later navigation.");
-      }
-
-      reg.addEventListener("updatefound", () => {
-        const sw = reg.installing;
-        if (!sw) return;
-        sw.addEventListener("statechange", () => {
-          if (sw.state === "installed") {
-            if (navigator.serviceWorker.controller) {
-              log("SW update installed. Keeping current session alive until next navigation.");
-            } else {
-              log("SW installed for first time.");
-            }
-          }
-        });
-      });
-
-      if (UPDATE_CHECK_EVERY_MIN > 0) {
-        setInterval(() => {
-          reg.update().catch(() => {});
-        }, UPDATE_CHECK_EVERY_MIN * 60 * 1000);
-      }
-    } catch (err) {
-      warn("Registration failed:", err);
+    if (runtime.reloadOnControllerChange && !runtime.reloadTriggered) {
+      runtime.reloadTriggered = true;
+      window.location.reload();
     }
+  });
+
+  function register() {
+    ensureRegistration().catch(() => {});
   }
 
   if (document.readyState === "loading") {
@@ -919,14 +1197,21 @@
   const isInstalled = () =>
     !!window.matchMedia?.(DISPLAY_MODE_QUERY).matches || window.navigator.standalone === true;
 
+  const getSwState = () => window.EDUVENTURE_SW_UPDATES?.getState?.() || {};
+
   function getState() {
     const installed = isInstalled();
+    const sw = getSwState();
 
     return {
       canPrompt: !!deferredPrompt && !installed,
       installed,
       isIOS,
       isSafari,
+      canUpdate: !!sw.supported && (sw.registered || sw.ready || sw.hasController),
+      updateAvailable: !!sw.updateReady,
+      checkingForUpdate: !!sw.checking,
+      updating: !!sw.updating,
     };
   }
 
@@ -949,6 +1234,21 @@
     return choice;
   }
 
+  async function downloadUpdate() {
+    if (!isInstalled()) {
+      return { outcome: "unavailable", reason: "not-installed" };
+    }
+
+    const swApi = window.EDUVENTURE_SW_UPDATES;
+    if (!swApi?.downloadUpdate) {
+      return { outcome: "unavailable", reason: "sw-unavailable" };
+    }
+
+    const result = await swApi.downloadUpdate();
+    emitState();
+    return result;
+  }
+
   function emitState() {
     const detail = getState();
     window.dispatchEvent(new CustomEvent("eduventure:pwa-state", { detail }));
@@ -957,6 +1257,7 @@
   window.__EDUVENTURE_PWA__ = {
     getState,
     promptInstall,
+    downloadUpdate,
   };
   window.EDUVENTURE_PWA = window.__EDUVENTURE_PWA__;
 
@@ -968,6 +1269,10 @@
 
   window.addEventListener("appinstalled", () => {
     deferredPrompt = null;
+    emitState();
+  });
+
+  window.addEventListener("eduventure:sw-state", () => {
     emitState();
   });
 
