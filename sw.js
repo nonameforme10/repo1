@@ -5,7 +5,7 @@ const IS_SERVICE_WORKER_CONTEXT =
   self instanceof ServiceWorkerGlobalScope;
 
 if (IS_SERVICE_WORKER_CONTEXT) {
-  const VERSION = "v10";
+  const VERSION = "v11";
   const CORE_CACHE = `eduventure-core-${VERSION}`;
   const RUNTIME_CACHE = `eduventure-runtime-${VERSION}`;
   const MAX_RUNTIME_ENTRIES = 120;
@@ -36,7 +36,7 @@ if (IS_SERVICE_WORKER_CONTEXT) {
     abs("ping.txt"),
   ];
 
-  const STATIC_DESTINATIONS = new Set(["script", "style", "image", "font", "manifest"]);
+  const STATIC_DESTINATIONS = new Set(["script", "style", "image", "font"]);
   const STATIC_EXT_RE =
     /\.(?:css|js|mjs|png|jpe?g|gif|webp|svg|ico|woff2?|ttf|eot|json|webmanifest|txt)$/i;
   const AUTH_NETWORK_ONLY_PREFIXES = ["/pages/auth/", "/auth/", "/__/auth/"];
@@ -205,6 +205,27 @@ if (IS_SERVICE_WORKER_CONTEXT) {
     });
   }
 
+  async function handleManifest(event) {
+    const request = event.request;
+
+    try {
+      const network = await fetch(request);
+      const url = new URL(request.url);
+      if (isCacheableResponse(request, network, url)) {
+        event.waitUntil(putRuntime(request, network.clone()));
+      }
+      return network;
+    } catch {
+      const cached = await caches.match(request);
+      if (cached) return cached;
+
+      return new Response("Offline", {
+        status: 503,
+        headers: { "content-type": "text/plain; charset=utf-8" },
+      });
+    }
+  }
+
   self.addEventListener("fetch", (event) => {
     const request = event.request;
     if (request.method !== "GET") return;
@@ -229,6 +250,11 @@ if (IS_SERVICE_WORKER_CONTEXT) {
 
     if (request.mode === "navigate") {
       event.respondWith(handleNavigation(event));
+      return;
+    }
+
+    if (request.destination === "manifest" || /\.webmanifest$/i.test(url.pathname)) {
+      event.respondWith(handleManifest(event));
       return;
     }
 

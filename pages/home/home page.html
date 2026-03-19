@@ -259,6 +259,44 @@
         <p style="text-align: center; font-size: small;">© 2026 Eduventure Learning. All rights reserved.</p>
     </div>
 </footer>
+    <aside class="pwa-promo" id="pwaPromo" hidden aria-live="polite">
+        <div class="pwa-promo-inner">
+            <button type="button" class="pwa-promo-close" id="pwaPromoClose" aria-label="Dismiss app popup">
+                <i data-lucide="x" size="18"></i>
+            </button>
+            <div class="pwa-promo-eyebrow" id="pwaPromoEyebrow">EduVenture app</div>
+            <div class="pwa-promo-head">
+                <div class="pwa-promo-icon">
+                    <i data-lucide="smartphone" size="20"></i>
+                </div>
+                <div>
+                    <h3 id="pwaPromoTitle">Download EduVenture</h3>
+                    <p id="pwaPromoText">Keep lessons close with faster launch, cleaner study mode, and easy updates.</p>
+                </div>
+            </div>
+            <div class="pwa-promo-features">
+                <span class="pwa-promo-chip" id="pwaPromoChipOne">
+                    <i data-lucide="zap" size="14"></i>
+                    <span data-promo-chip-label>Fast launch</span>
+                </span>
+                <span class="pwa-promo-chip" id="pwaPromoChipTwo">
+                    <i data-lucide="wifi-off" size="14"></i>
+                    <span data-promo-chip-label>Offline ready</span>
+                </span>
+                <span class="pwa-promo-chip" id="pwaPromoChipThree">
+                    <i data-lucide="refresh-cw" size="14"></i>
+                    <span data-promo-chip-label>Easy updates</span>
+                </span>
+            </div>
+            <div class="pwa-promo-actions">
+                <button type="button" class="pwa-promo-primary" id="pwaPromoAction">
+                    <i data-lucide="download" size="18"></i>
+                    <span data-promo-action-label>Download</span>
+                </button>
+                <button type="button" class="pwa-promo-secondary" id="pwaPromoSecondary">Later</button>
+            </div>
+        </div>
+    </aside>
     <script src="/pages/home/script.js"></script>
     <script src="/pages/home/pwa-install.js"></script>
     <script src="/elements/UI.js"></script>

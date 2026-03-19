@@ -1191,11 +1191,37 @@
     /^((?!chrome|android|crios|fxios|edgios).)*safari/i.test(ua) ||
     ((/iphone|ipad|ipod/i.test(ua) || /macintosh/i.test(ua)) &&
       navigator.vendor === "Apple Computer, Inc.");
+  const INSTALL_HINT_KEY = "eduventure_pwa_installed_hint_v1";
 
   let deferredPrompt = null;
+  let installHint = false;
 
-  const isInstalled = () =>
-    !!window.matchMedia?.(DISPLAY_MODE_QUERY).matches || window.navigator.standalone === true;
+  try {
+    installHint = localStorage.getItem(INSTALL_HINT_KEY) === "1";
+  } catch {}
+
+  function setInstallHint(installed) {
+    installHint = !!installed;
+
+    try {
+      if (installHint) {
+        localStorage.setItem(INSTALL_HINT_KEY, "1");
+      } else {
+        localStorage.removeItem(INSTALL_HINT_KEY);
+      }
+    } catch {}
+  }
+
+  function isInstalled() {
+    const installedNow =
+      !!window.matchMedia?.(DISPLAY_MODE_QUERY).matches || window.navigator.standalone === true;
+
+    if (installedNow && !installHint) {
+      setInstallHint(true);
+    }
+
+    return installedNow || installHint;
+  }
 
   const getSwState = () => window.EDUVENTURE_SW_UPDATES?.getState?.() || {};
 
@@ -1229,6 +1255,10 @@
 
     await promptEvent.prompt();
     const choice = await promptEvent.userChoice.catch(() => ({ outcome: "dismissed" }));
+
+    if (choice?.outcome === "accepted") {
+      setInstallHint(true);
+    }
 
     emitState();
     return choice;
@@ -1264,11 +1294,13 @@
   window.addEventListener("beforeinstallprompt", (event) => {
     event.preventDefault();
     deferredPrompt = event;
+    setInstallHint(false);
     emitState();
   });
 
   window.addEventListener("appinstalled", () => {
     deferredPrompt = null;
+    setInstallHint(true);
     emitState();
   });
 

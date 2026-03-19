@@ -3,7 +3,7 @@
   "name": "EduVenture",
   "short_name": "EduVenture",
   "description": "Study materials, challenges, and premium learning resources for students.",
-  "start_url": "/index.html",
+  "start_url": "/pages/home/home%20page.html",
   "scope": "/",
   "display": "standalone",
   "background_color": "#0f172a",

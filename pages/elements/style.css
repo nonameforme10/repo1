@@ -491,6 +491,187 @@ button.btn-outline {
     line-height: 1.7;
 }
 
+.pwa-promo {
+    position: fixed;
+    right: 24px;
+    bottom: 24px;
+    width: min(380px, calc(100vw - 32px));
+    z-index: 1800;
+}
+
+.pwa-promo[hidden] {
+    display: none;
+}
+
+.pwa-promo-inner {
+    position: relative;
+    overflow: hidden;
+    border-radius: 24px;
+    padding: 22px;
+    background:
+        radial-gradient(circle at top right, rgba(251, 191, 36, 0.28), transparent 34%),
+        linear-gradient(145deg, rgba(15, 23, 42, 0.96), rgba(30, 41, 59, 0.94));
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    box-shadow: 0 30px 80px rgba(15, 23, 42, 0.35);
+    backdrop-filter: blur(18px);
+    animation: pwaPromoReveal 0.5s ease;
+}
+
+.pwa-promo-inner::before {
+    content: '';
+    position: absolute;
+    inset: auto -35% 12% 35%;
+    height: 130px;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.18), transparent 62%);
+    pointer-events: none;
+}
+
+.pwa-promo-close {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    width: 34px;
+    height: 34px;
+    border: none;
+    border-radius: 999px;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    color: #e2e8f0;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.pwa-promo-close:hover {
+    background: rgba(255, 255, 255, 0.16);
+}
+
+.pwa-promo-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 16px;
+    padding: 8px 12px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    color: #f8fafc;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.pwa-promo-head {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 14px;
+    align-items: start;
+}
+
+.pwa-promo-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 16px;
+    display: grid;
+    place-items: center;
+    color: #111827;
+    background: linear-gradient(135deg, #fbbf24, #f59e0b);
+    box-shadow: 0 12px 30px rgba(245, 158, 11, 0.35);
+}
+
+.pwa-promo-head h3 {
+    margin: 0;
+    color: #ffffff;
+    font-size: 24px;
+    line-height: 1.1;
+}
+
+.pwa-promo-head p {
+    margin: 10px 0 0;
+    color: #cbd5e1;
+    font-size: 14px;
+    line-height: 1.65;
+}
+
+.pwa-promo-features {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 18px;
+}
+
+.pwa-promo-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    color: #f8fafc;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.pwa-promo-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 20px;
+}
+
+.pwa-promo-primary,
+.pwa-promo-secondary {
+    font: inherit;
+    border-radius: 14px;
+    min-height: 50px;
+}
+
+.pwa-promo-primary {
+    flex: 1 1 auto;
+    border: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    cursor: pointer;
+    font-weight: 700;
+    color: #111827;
+    background: linear-gradient(135deg, #f8fafc, #fbbf24);
+    box-shadow: 0 14px 30px rgba(248, 250, 252, 0.16);
+}
+
+.pwa-promo-primary:hover {
+    transform: translateY(-1px);
+}
+
+.pwa-promo-primary[disabled] {
+    opacity: 0.72;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.pwa-promo-secondary {
+    flex: 0 0 auto;
+    padding: 0 18px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.06);
+    color: #f8fafc;
+    cursor: pointer;
+}
+
+.pwa-promo-secondary:hover {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+@keyframes pwaPromoReveal {
+    from {
+        opacity: 0;
+        transform: translateY(18px) scale(0.96);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
 .perks {
     padding: 40px 5%;
     background-color: #f9fafb;
@@ -1105,6 +1286,29 @@ footer {
         grid-template-columns: 1fr;
         gap: 32px;
     }
+
+    .pwa-promo {
+        right: 16px;
+        bottom: 16px;
+        width: min(420px, calc(100vw - 24px));
+    }
+
+    .pwa-promo-inner {
+        border-radius: 22px;
+        padding: 20px;
+    }
+
+    .pwa-promo-head h3 {
+        font-size: 22px;
+    }
+
+    .pwa-promo-actions {
+        flex-direction: column;
+    }
+
+    .pwa-promo-secondary {
+        width: 100%;
+    }
     
     .footer-links {
         flex-direction: column;
@@ -1192,6 +1396,35 @@ footer {
     
     .logo-text p {
         font-size: 8px;
+    }
+
+    .pwa-promo {
+        left: 12px;
+        right: 12px;
+        bottom: 12px;
+        width: auto;
+    }
+
+    .pwa-promo-inner {
+        padding: 18px;
+    }
+
+    .pwa-promo-head {
+        grid-template-columns: 1fr;
+    }
+
+    .pwa-promo-icon {
+        width: 42px;
+        height: 42px;
+    }
+
+    .pwa-promo-head h3 {
+        font-size: 20px;
+    }
+
+    .pwa-promo-chip {
+        width: 100%;
+        justify-content: center;
     }
     .gif-video {
     max-width: 400px;
