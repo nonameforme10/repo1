@@ -14,6 +14,7 @@
     const promoText = document.getElementById("pwaPromoText");
     const promoAction = document.getElementById("pwaPromoAction");
     const promoSecondary = document.getElementById("pwaPromoSecondary");
+    const promoGif = promo.querySelector(".pwa-promo-gif");
     const promoActionLabel = promoAction?.querySelector("[data-promo-action-label]");
     const promoChipLabels = [
       document.querySelector("#pwaPromoChipOne [data-promo-chip-label]"),
@@ -50,7 +51,17 @@
       }
     };
 
+    const ensurePromoMediaLoaded = () => {
+      const src = promoGif?.dataset?.src;
+      if (!promoGif || !src || promoGif.getAttribute("src")) return;
+      promoGif.src = src;
+    };
+
     const setPromoVisibility = (visible) => {
+      if (visible) {
+        ensurePromoMediaLoaded();
+      }
+
       promo.hidden = !visible;
       promo.style.display = visible ? "" : "none";
 

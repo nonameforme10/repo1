@@ -8,8 +8,18 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="EduVenture">
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@0.577.0/dist/umd/lucide.min.js" defer></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        rel="preload"
+        as="style"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+        onload="this.onload=null;this.rel='stylesheet'"
+    >
+    <noscript>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    </noscript>
     <link rel="stylesheet" href="/pages/elements/style.css">
 <link rel="icon" href="/favicon.png">
 <link rel="manifest" href="/manifest.webmanifest">
@@ -41,7 +51,15 @@
 
         <nav class="nav-main">
             <div class="logo-section" onclick="location.href='/pages/home/home page.html'">
-                <img style="cursor: pointer;" src="/assets/logo.png" alt="icon" class="icon-box">
+                <img
+                    style="cursor: pointer;"
+                    src="/assets/logo.png"
+                    alt="icon"
+                    class="icon-box"
+                    width="482"
+                    height="264"
+                    decoding="async"
+                >
                 <div style="cursor: pointer;" class="logo-text">
                     <h1><span style="color: #ffffff;">EDU</span><span style="color: #fbbf24;">VENTURE</span></h1>
                     <p>PREMIUM LEARNING</p>
@@ -135,7 +153,15 @@
                 </div>
             </div>
         </div>
-        <img src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExbTVmc25rOTNhNmVrZGViazk2dDl0NnIweDNkODVjYnlyM3htd3l6YiZlcD12MV9zdGlja2Vyc19zZWFyY2gmY3Q9cw/RemHbGtR3lNsqyERMS/giphy.gif" alt="Inspiration animation">
+        <img
+            src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExbTVmc25rOTNhNmVrZGViazk2dDl0NnIweDNkODVjYnlyM3htd3l6YiZlcD12MV9zdGlja2Vyc19zZWFyY2gmY3Q9cw/RemHbGtR3lNsqyERMS/giphy.gif"
+            alt="Inspiration animation"
+            width="480"
+            height="480"
+            loading="lazy"
+            decoding="async"
+            fetchpriority="low"
+        >
     </main>
     <main class="feature-section">
         <h1 style="color: #0f172a; text-align: center;">Featured Courses</h1>
@@ -143,27 +169,71 @@
         
         <div class="featured-box">
             <div class="product-card" onclick="location.href='/pages/study_materials/reading.menu.page.html'">
-                <img src="https://ik.imagekit.io/Eduventure/pics/reading.webp" alt="Readings">
+                <img
+                    src="https://ik.imagekit.io/Eduventure/pics/reading.webp?tr=w-680,h-680,c-at_max,q-75,f-webp"
+                    srcset="
+                        https://ik.imagekit.io/Eduventure/pics/reading.webp?tr=w-340,h-340,c-at_max,q-75,f-webp 340w,
+                        https://ik.imagekit.io/Eduventure/pics/reading.webp?tr=w-680,h-680,c-at_max,q-75,f-webp 680w
+                    "
+                    sizes="(max-width: 768px) 80vw, (max-width: 1100px) 42vw, 22vw"
+                    alt="Readings"
+                    loading="lazy"
+                    decoding="async"
+                    fetchpriority="low"
+                >
                 <div class="product-card-content">
                     <h1 style="color: #0f172a; text-align: center;">Readings</h1>
                 </div>
             </div>
             <div class="product-card" onclick="location.href='/pages/study_materials/listening.menu.page.html'">
-                <img src="https://ik.imagekit.io/Eduventure/pics/listenings.webp" alt="listenings">
+                <img
+                    src="https://ik.imagekit.io/Eduventure/pics/listenings.webp?tr=w-680,h-680,c-at_max,q-75,f-webp"
+                    srcset="
+                        https://ik.imagekit.io/Eduventure/pics/listenings.webp?tr=w-340,h-340,c-at_max,q-75,f-webp 340w,
+                        https://ik.imagekit.io/Eduventure/pics/listenings.webp?tr=w-680,h-680,c-at_max,q-75,f-webp 680w
+                    "
+                    sizes="(max-width: 768px) 80vw, (max-width: 1100px) 42vw, 22vw"
+                    alt="Listenings"
+                    loading="lazy"
+                    decoding="async"
+                    fetchpriority="low"
+                >
                 <div class="product-card-content">
                     <h1 style="color: #0f172a; text-align: center;">Listenings</h1>
                 </div>
             </div>
 
             <div class="product-card" onclick="location.href='/pages/study_materials/vocabularies.page.html'">
-                <img src="https://ik.imagekit.io/Eduventure/pics/vocabl.webp" alt="Vocabularies">
+                <img
+                    src="https://ik.imagekit.io/Eduventure/pics/vocabl.webp?tr=w-680,h-680,c-at_max,q-75,f-webp"
+                    srcset="
+                        https://ik.imagekit.io/Eduventure/pics/vocabl.webp?tr=w-340,h-340,c-at_max,q-75,f-webp 340w,
+                        https://ik.imagekit.io/Eduventure/pics/vocabl.webp?tr=w-680,h-680,c-at_max,q-75,f-webp 680w
+                    "
+                    sizes="(max-width: 768px) 80vw, (max-width: 1100px) 42vw, 22vw"
+                    alt="Vocabularies"
+                    loading="lazy"
+                    decoding="async"
+                    fetchpriority="low"
+                >
                 <div class="product-card-content">
                     <h1 style="color: #0f172a; text-align: center;">Vocabularies</h1>
                 </div>
             </div>
 
             <div class="product-card" onclick="location.href='/lessons/online.html'">
-                <img src="https://ik.imagekit.io/Eduventure/pics/lessons.webp" alt="lessons">
+                <img
+                    src="https://ik.imagekit.io/Eduventure/pics/lessons.webp?tr=w-680,h-680,c-at_max,q-75,f-webp"
+                    srcset="
+                        https://ik.imagekit.io/Eduventure/pics/lessons.webp?tr=w-340,h-340,c-at_max,q-75,f-webp 340w,
+                        https://ik.imagekit.io/Eduventure/pics/lessons.webp?tr=w-680,h-680,c-at_max,q-75,f-webp 680w
+                    "
+                    sizes="(max-width: 768px) 80vw, (max-width: 1100px) 42vw, 22vw"
+                    alt="Lessons"
+                    loading="lazy"
+                    decoding="async"
+                    fetchpriority="low"
+                >
                 <div class="product-card-content">
                     <h1 style="color: #0f172a; text-align: center;">Lessons</h1>
                 </div>
@@ -178,7 +248,15 @@
         <div class="market-grid">
             <div class="market-card">
                 <div class="market-image">
-                    <img src="/assets/pic2.webp" alt="Kokand Edu">
+                    <img
+                        src="/assets/pic2.webp"
+                        alt="Kokand Edu"
+                        width="1043"
+                        height="704"
+                        loading="lazy"
+                        decoding="async"
+                        fetchpriority="low"
+                    >
                 </div>
                 <div class="market-info">
                     <h3>Kokand Educational center</h3>
@@ -189,7 +267,15 @@
             </div>
             <div class="market-card">
                 <div class="market-image">
-                    <img src="/assets/pict1.webp" alt="Kokand Edu">
+                    <img
+                        src="/assets/pict1.webp"
+                        alt="Kokand Edu"
+                        width="1733"
+                        height="1172"
+                        loading="lazy"
+                        decoding="async"
+                        fetchpriority="low"
+                    >
                 </div>
                 <div class="market-info">
                     <h3>Kokand Educational center</h3>
@@ -205,7 +291,16 @@
     <div class="footer-container">
         <div class="footer-el">
             <div class="footer-logo">
-                <img src="/assets/logo.png" alt="icon" class="icon-box" style="width: 40px; height: 40px;">
+                <img
+                    src="/assets/logo.png"
+                    alt="icon"
+                    class="icon-box"
+                    style="width: 40px; height: 40px;"
+                    width="482"
+                    height="264"
+                    loading="lazy"
+                    decoding="async"
+                >
                 <h2><span style="color: #ffffff;">EDU</span><span style="color: #fbbf24;">VENTURE</span></h2>
             </div>
             <p>Empowering students globally with premium resources, expert-led courses, and a supportive learning community since 2026.</p>
@@ -273,8 +368,11 @@
                         <span class="pwa-promo-orbit pwa-promo-orbit-two"></span>
                         <img
                             class="pwa-promo-gif"
-                            src="https://media.giphy.com/media/v1.Y2lkPWVjZjA1ZTQ3MzN0M3VqaTN2eDBmNTY4d2dwb2lremUwaWNoMXd5YTV6c2Y1NXRraiZlcD12MV9zdGlja2Vyc19zZWFyY2gmY3Q9cw/6KirhLJyR7oMcwgJQk/giphy.gif"
+                            data-src="https://media.giphy.com/media/v1.Y2lkPWVjZjA1ZTQ3MzN0M3VqaTN2eDBmNTY4d2dwb2lremUwaWNoMXd5YTV6c2Y1NXRraiZlcD12MV9zdGlja2Vyc19zZWFyY2gmY3Q9cw/6KirhLJyR7oMcwgJQk/giphy.gif"
                             alt=""
+                            width="480"
+                            height="480"
+                            decoding="async"
                         >
                     </div>
                 </div>
@@ -302,11 +400,8 @@
             </div>
         </div>
     </aside>
-    <script src="/pages/home/script.js"></script>
-    <script src="/pages/home/pwa-install.js"></script>
-    <script src="/elements/UI.js"></script>
-    <script src="/pages/elements/script.js"></script>
-    <script src="/script-internet-checker.js"></script>
-    <script type="module" src="/elements/firebase.js"></script>
+    <script src="/pages/home/script.js" defer></script>
+    <script src="/pages/home/pwa-install.js" defer></script>
+    <script src="/pages/elements/script.js" defer></script>
 </body>
 </html>

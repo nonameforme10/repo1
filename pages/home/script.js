@@ -199,117 +199,125 @@ const quotes = [
     "The way to get started is to quit talking and begin doing. - Walt Disney"
 ];
 
-let currentQuoteIndex = 0; 
+let currentQuoteIndex = -1;
+let quoteElement = null;
+let quoteReady = false;
 
-function updateClock() {
-    const now = new Date();
-    const hours = now.getHours();
-    const minutes = now.getMinutes();
-    const seconds = now.getSeconds();
-
-    const hourDeg = ((hours % 12) + minutes / 60) * 30;
-    const minuteDeg = (minutes + seconds / 60) * 6;
-    const secondDeg = seconds * 6;
-
-    const hourHand = document.querySelector('.hour');
-    const minuteHand = document.querySelector('.minute');
-    const secondHand = document.querySelector('.second');
-    
-    if (hourHand) hourHand.style.transform = `translateX(-50%) rotate(${hourDeg}deg)`;
-    if (minuteHand) minuteHand.style.transform = `translateX(-50%) rotate(${minuteDeg}deg)`;
-    if (secondHand) secondHand.style.transform = `translateX(-50%) rotate(${secondDeg}deg)`;
-}
-
-function toggleLight() {
-    const body = document.body;
-    const content = document.querySelector('.content');
-    if (content) {
-        const isHidden = content.classList.toggle('hidden');
-        body.style.backgroundColor = isHidden ? 'black' : '';
-    }
-}
-
-function displayRandomQuote() {
-    const quoteElement = document.querySelector('.quote');
-    
+function getQuoteElement() {
     if (!quoteElement) {
-        console.error('Quote element not found');
-        return;
+        quoteElement = document.querySelector('.quote');
     }
-    
-    
+
+    return quoteElement;
+}
+
+function chooseRandomQuoteIndex() {
     let randomIndex;
+
     do {
         randomIndex = Math.floor(Math.random() * quotes.length);
     } while (randomIndex === currentQuoteIndex && quotes.length > 1);
-    
+
     currentQuoteIndex = randomIndex;
-    
-    
-    quoteElement.style.opacity = '0';
-    quoteElement.style.transition = 'opacity 0.3s ease';
-    
-    setTimeout(() => {
-        quoteElement.textContent = quotes[randomIndex];
-        quoteElement.style.opacity = '1';
-        
-        
-        if (typeof lucide !== 'undefined') {
-            lucide.createIcons();
-        }
-    }, 300);
+    return randomIndex;
+}
+
+function ensureQuoteReady() {
+    if (quoteReady) {
+        return;
+    }
+
+    quoteReady = true;
+    displayRandomQuote();
+}
+
+function displayRandomQuote() {
+    const element = getQuoteElement();
+
+    if (!element) {
+        return;
+    }
+
+    const nextIndex = chooseRandomQuoteIndex();
+    element.textContent = quotes[nextIndex];
 }
 
 function shareQuote() {
-    const quoteElement = document.querySelector('.quote');
-    if (!quoteElement) return;
-    
-    const quoteText = quoteElement.textContent;
-    
+    const element = getQuoteElement();
+    if (!element) return;
+
+    if (!element.textContent.trim()) {
+        ensureQuoteReady();
+    }
+
+    const quoteText = element.textContent.trim();
+    if (!quoteText) return;
+
     if (navigator.share) {
         navigator.share({
             title: 'Inspirational Quote',
             text: quoteText
-        }).catch(err => console.log('Error sharing:', err));
-    } else {
-        
-        navigator.clipboard.writeText(quoteText).then(() => {
-            
-            const shareButtons = document.querySelectorAll('.quote-btn');
-            let btn = null;
-            
-            shareButtons.forEach(button => {
-                if (button.textContent.includes('Share')) {
-                    btn = button;
-                }
-            });
-            
-            if (!btn) return;
-            
-            const originalHTML = btn.innerHTML;
-            btn.innerHTML = '<i data-lucide="check" size="16"></i> Copied!';
-            
+        }).catch((err) => console.log('Error sharing:', err));
+        return;
+    }
+
+    if (!navigator.clipboard?.writeText) {
+        return;
+    }
+
+    navigator.clipboard.writeText(quoteText).then(() => {
+        const btn = document.querySelector('.quote-controls .quote-btn:last-child');
+        if (!btn) return;
+
+        const originalHTML = btn.innerHTML;
+        btn.innerHTML = '<i data-lucide="check" size="16"></i> Copied!';
+
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+
+        window.setTimeout(() => {
+            btn.innerHTML = originalHTML;
             if (typeof lucide !== 'undefined') {
                 lucide.createIcons();
             }
-            
-            setTimeout(() => {
-                btn.innerHTML = originalHTML;
-                if (typeof lucide !== 'undefined') {
-                    lucide.createIcons();
-                }
-            }, 2000);
-        }).catch(err => console.log('Error copying:', err));
-    }
+        }, 2000);
+    }).catch((err) => console.log('Error copying:', err));
 }
 
-setInterval(updateClock, 1000);
+function initQuoteWhenNeeded() {
+    const section = document.querySelector('.quotes');
+    if (!section) return;
 
-window.onload = function() {
-    updateClock();
-    displayRandomQuote();
-    
-    if (typeof lucide !== 'undefined') {
-        lucide.createIcons();
+    if ('IntersectionObserver' in window) {
+        const observer = new IntersectionObserver((entries) => {
+            if (!entries.some((entry) => entry.isIntersecting)) {
+                return;
+            }
+
+            observer.disconnect();
+            ensureQuoteReady();
+        }, {
+            rootMargin: '180px 0px'
+        });
+
+        observer.observe(section);
+        return;
     }
-};
+
+    if ('requestIdleCallback' in window) {
+        window.requestIdleCallback(ensureQuoteReady, { timeout: 1200 });
+        return;
+    }
+
+    window.setTimeout(ensureQuoteReady, 300);
+}
+
+window.displayRandomQuote = displayRandomQuote;
+window.shareQuote = shareQuote;
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initQuoteWhenNeeded, { once: true });
+} else {
+    initQuoteWhenNeeded();
+}

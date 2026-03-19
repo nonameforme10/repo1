@@ -5,7 +5,7 @@ const IS_SERVICE_WORKER_CONTEXT =
   self instanceof ServiceWorkerGlobalScope;
 
 if (IS_SERVICE_WORKER_CONTEXT) {
-  const VERSION = "v11.7";
+  const VERSION = "v12.1";
   const CORE_CACHE = `eduventure-core-${VERSION}`;
   const RUNTIME_CACHE = `eduventure-runtime-${VERSION}`;
   const MAX_RUNTIME_ENTRIES = 120;
@@ -32,6 +32,7 @@ if (IS_SERVICE_WORKER_CONTEXT) {
     abs("pages/home/script.js"),
     abs("pages/home/pwa-install.js"),
     abs("pages/elements/style.css"),
+    abs("pages/elements/notifications.js"),
     abs("pages/elements/script.js"),
     abs("ping.txt"),
   ];
@@ -273,5 +274,46 @@ if (IS_SERVICE_WORKER_CONTEXT) {
     if (data === "SKIP_WAITING") {
       self.skipWaiting();
     }
+  });
+
+  self.addEventListener("notificationclick", (event) => {
+    const notification = event.notification;
+    const targetUrl = new URL(notification?.data?.url || "/pages/home/home%20page.html", self.location.origin)
+      .toString();
+
+    notification?.close();
+
+    event.waitUntil(
+      (async () => {
+        const clientsList = await self.clients.matchAll({
+          type: "window",
+          includeUncontrolled: true,
+        });
+
+        const exactMatch = clientsList.find((client) => {
+          try {
+            return new URL(client.url).pathname === new URL(targetUrl).pathname;
+          } catch {
+            return false;
+          }
+        });
+
+        const fallbackClient = exactMatch || clientsList[0];
+
+        if (fallbackClient) {
+          if ("focus" in fallbackClient) {
+            await fallbackClient.focus();
+          }
+          if ("navigate" in fallbackClient) {
+            await fallbackClient.navigate(targetUrl);
+          }
+          return;
+        }
+
+        if (self.clients.openWindow) {
+          await self.clients.openWindow(targetUrl);
+        }
+      })()
+    );
   });
 }

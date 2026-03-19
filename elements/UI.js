@@ -199,6 +199,38 @@
 
   console.log(`%c${card}`, css.dim);
 })();
+(() => {
+  "use strict";
+
+  if (window.__EDUVENTURE_NOTIFICATIONS_LOADER__) return;
+  window.__EDUVENTURE_NOTIFICATIONS_LOADER__ = true;
+
+  const NOTIFICATIONS_SRC = "/pages/elements/notifications.js";
+  const pageAllowsNotifications = () =>
+    document.documentElement?.dataset?.enableNotifications === "true" ||
+    document.body?.dataset?.enableNotifications === "true";
+
+  function injectNotifications() {
+    if (!pageAllowsNotifications()) return;
+    if (window.__EDUVENTURE_NOTIFICATIONS_MODULE__) return;
+
+    const already = [...document.scripts].some((script) =>
+      String(script.src || "").includes(NOTIFICATIONS_SRC)
+    );
+    if (already) return;
+
+    const script = document.createElement("script");
+    script.type = "module";
+    script.src = NOTIFICATIONS_SRC;
+    (document.head || document.documentElement).appendChild(script);
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", injectNotifications, { once: true });
+  } else {
+    injectNotifications();
+  }
+})();
 (function registerEduventureServiceWorker() {
   "use strict";
 
@@ -673,8 +705,12 @@
   window.__EDUVENTURE_CHECKER_LOADER__ = true;
 
   const CHECKER_SRC = "/script-internet-checker.js";
+  const pageAllowsConnectivityChecker = () =>
+    document.documentElement?.dataset?.enableConnectivityChecker === "true" ||
+    document.body?.dataset?.enableConnectivityChecker === "true";
 
   function injectChecker() {
+    if (!pageAllowsConnectivityChecker()) return;
     const already = [...document.scripts].some((s) => (s.src || "").includes(CHECKER_SRC));
     if (already) return;
 
@@ -806,6 +842,7 @@
   "use strict";
 
   if (window.__EDUVENTURE_FOCUS_TRAP_ACTIVE__) return;
+  if (decodeURIComponent(location.pathname || "").endsWith("/pages/home/home page.html")) return;
   window.__EDUVENTURE_FOCUS_TRAP_ACTIVE__ = true;
 
   const ENABLE_LOGS = false;

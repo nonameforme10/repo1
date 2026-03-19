@@ -262,27 +262,70 @@
                     </div>
 
                     <h3 style="color: #111827; margin-bottom: 15px;">Notification Preferences</h3>
-                    <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px; margin-bottom: 30px;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #e5e7eb;">
+                    <div class="notification-settings-card">
+                        <div class="notification-permission-row">
                             <div>
-                                <p style="margin: 0 0 4px 0; color: #111827; font-weight: 600; font-size: 14px;">Daily Reminders</p>
-                                <p style="margin: 0; color: #6b7280; font-size: 13px;">Get reminded to practice English every day</p>
+                                <p class="notification-pref-title">Browser Notifications</p>
+                                <p class="notification-pref-copy" id="notificationPermissionStatus">
+                                    Checking notification support...
+                                </p>
                             </div>
-                            <input type="checkbox" checked style="width: 20px; height: 20px; cursor: pointer;">
+                            <div class="notification-permission-actions">
+                                <button class="save-btn" id="enableNotificationsBtn" type="button">
+                                    Enable notifications
+                                </button>
+                                <button class="edit-btn" id="testNotificationBtn" type="button" style="background: #e5e7eb; color: #111827;">
+                                    Send test
+                                </button>
+                            </div>
                         </div>
-                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #e5e7eb;">
+
+                        <div class="notification-pref-row">
                             <div>
-                                <p style="margin: 0 0 4px 0; color: #111827; font-weight: 600; font-size: 14px;">Weekly Progress Report</p>
-                                <p style="margin: 0; color: #6b7280; font-size: 13px;">Receive your learning summary every week</p>
+                                <p class="notification-pref-title">Allow EduVenture Notifications</p>
+                                <p class="notification-pref-copy">Turn the whole notification system on or off for this account.</p>
                             </div>
-                            <input type="checkbox" checked style="width: 20px; height: 20px; cursor: pointer;">
+                            <label class="notification-toggle" for="notificationsEnabledToggle">
+                                <input type="checkbox" id="notificationsEnabledToggle">
+                            </label>
                         </div>
-                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0;">
+
+                        <div class="notification-pref-row">
                             <div>
-                                <p style="margin: 0 0 4px 0; color: #111827; font-weight: 600; font-size: 14px;">New Content Alerts</p>
-                                <p style="margin: 0; color: #6b7280; font-size: 13px;">Get notified when new materials are added</p>
+                                <p class="notification-pref-title">Daily Reminders</p>
+                                <p class="notification-pref-copy">Get reminded to practice English once a day when you have not studied yet.</p>
                             </div>
-                            <input type="checkbox" style="width: 20px; height: 20px; cursor: pointer;">
+                            <label class="notification-toggle" for="dailyReminderToggle">
+                                <input type="checkbox" id="dailyReminderToggle">
+                            </label>
+                        </div>
+
+                        <div class="notification-inline-field">
+                            <label for="dailyReminderTime">Reminder time</label>
+                            <select id="dailyReminderTime"></select>
+                            <p id="notificationSettingsHint">
+                                Reminders and alerts are checked whenever EduVenture opens, regains focus, or comes back online.
+                            </p>
+                        </div>
+
+                        <div class="notification-pref-row">
+                            <div>
+                                <p class="notification-pref-title">Weekly Progress Report</p>
+                                <p class="notification-pref-copy">Receive a weekly summary based on your completed readings, listenings, lessons, and challenge XP.</p>
+                            </div>
+                            <label class="notification-toggle" for="weeklyProgressToggle">
+                                <input type="checkbox" id="weeklyProgressToggle">
+                            </label>
+                        </div>
+
+                        <div class="notification-pref-row">
+                            <div>
+                                <p class="notification-pref-title">New Content Alerts</p>
+                                <p class="notification-pref-copy">Get notified when new online lessons or weekly challenges are published.</p>
+                            </div>
+                            <label class="notification-toggle" for="newContentToggle">
+                                <input type="checkbox" id="newContentToggle">
+                            </label>
                         </div>
                     </div>
 
@@ -388,6 +431,5 @@
 <script src="/sw.js"></script>
 </body>
 </html>
-
 
 

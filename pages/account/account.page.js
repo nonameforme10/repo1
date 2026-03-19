@@ -7,6 +7,14 @@ import {
   readAuthHint,
   getAuthRecoveryGraceMs,
 } from "/pages/elements/auth.session.js";
+import {
+  DEFAULT_NOTIFICATION_PREFERENCES,
+  getNotificationState,
+  requestNotificationPermission,
+  saveNotificationPreferences,
+  runNotificationChecksNow,
+  showTestNotification,
+} from "/pages/elements/notifications.js";
 
 import {
   onAuthStateChanged,
@@ -1509,12 +1517,178 @@ function setupHistoryUI() {
   }
 }
 
+function setupNotificationPreferences() {
+  const permissionStatus = $id("notificationPermissionStatus");
+  const enableBtn = $id("enableNotificationsBtn");
+  const testBtn = $id("testNotificationBtn");
+  const masterToggle = $id("notificationsEnabledToggle");
+  const dailyToggle = $id("dailyReminderToggle");
+  const weeklyToggle = $id("weeklyProgressToggle");
+  const contentToggle = $id("newContentToggle");
+  const reminderTime = $id("dailyReminderTime");
+
+  if (
+    !permissionStatus ||
+    !enableBtn ||
+    !testBtn ||
+    !masterToggle ||
+    !dailyToggle ||
+    !weeklyToggle ||
+    !contentToggle ||
+    !reminderTime
+  ) {
+    return;
+  }
+
+  if (!reminderTime.options.length) {
+    for (let hour = 6; hour <= 22; hour += 1) {
+      const option = document.createElement("option");
+      option.value = String(hour);
+      option.textContent = `${String(hour).padStart(2, "0")}:00`;
+      reminderTime.appendChild(option);
+    }
+  }
+
+  const applyNotificationState = (detail = getNotificationState()) => {
+    const prefs = {
+      ...DEFAULT_NOTIFICATION_PREFERENCES,
+      ...(detail?.preferences || {}),
+    };
+    const supported = !!detail?.supported;
+    const permission = detail?.permission || "default";
+    const hasUser = !!currentUser;
+
+    masterToggle.checked = !!prefs.enabled;
+    dailyToggle.checked = !!prefs.dailyReminder;
+    weeklyToggle.checked = !!prefs.weeklyProgress;
+    contentToggle.checked = !!prefs.newContentAlerts;
+    reminderTime.value = String(prefs.reminderHour ?? DEFAULT_NOTIFICATION_PREFERENCES.reminderHour);
+
+    masterToggle.disabled = !supported || !hasUser;
+    dailyToggle.disabled = !supported || !hasUser || !prefs.enabled;
+    weeklyToggle.disabled = !supported || !hasUser || !prefs.enabled;
+    contentToggle.disabled = !supported || !hasUser || !prefs.enabled;
+    reminderTime.disabled =
+      !supported || !hasUser || !prefs.enabled || !prefs.dailyReminder;
+
+    enableBtn.disabled = !supported || permission === "denied";
+    testBtn.disabled = !supported || permission !== "granted";
+
+    if (!supported) {
+      permissionStatus.textContent =
+        "This browser does not support EduVenture notifications.";
+      enableBtn.textContent = "Unavailable";
+      return;
+    }
+
+    if (permission === "granted") {
+      permissionStatus.textContent =
+        "System notifications are enabled. EduVenture can now send reminders and content alerts.";
+      enableBtn.textContent = "Permission granted";
+      return;
+    }
+
+    if (permission === "denied") {
+      permissionStatus.textContent =
+        "Notifications are blocked in this browser. Allow them in your site settings to turn them back on.";
+      enableBtn.textContent = "Blocked in browser";
+      return;
+    }
+
+    permissionStatus.textContent =
+      "Notifications are not enabled yet. Grant permission to receive reminders and content alerts.";
+    enableBtn.textContent = "Enable notifications";
+  };
+
+  const savePreferencesFromUI = async (showToastFeedback = true) => {
+    if (!currentUser?.uid) return;
+
+    const patch = {
+      enabled: masterToggle.checked,
+      dailyReminder: dailyToggle.checked,
+      weeklyProgress: weeklyToggle.checked,
+      newContentAlerts: contentToggle.checked,
+      reminderHour: Number(reminderTime.value || DEFAULT_NOTIFICATION_PREFERENCES.reminderHour),
+    };
+
+    await saveNotificationPreferences(currentUser.uid, patch);
+    applyNotificationState(getNotificationState());
+    await runNotificationChecksNow({ force: true }).catch(() => {});
+
+    if (showToastFeedback) {
+      Toast.show("Notification preferences saved.", "success", 2200);
+    }
+  };
+
+  const onPreferenceChange = async () => {
+    try {
+      await savePreferencesFromUI(true);
+    } catch (error) {
+      console.error("Notification preference save failed:", error);
+      Toast.show("Could not save notification settings.", "error", 3600);
+      applyNotificationState(getNotificationState());
+    }
+  };
+
+  enableBtn.addEventListener("click", async () => {
+    try {
+      const result = await requestNotificationPermission();
+      applyNotificationState(getNotificationState());
+
+      if (result?.permission === "granted") {
+        await savePreferencesFromUI(false);
+        Toast.show("Notifications enabled successfully.", "success", 2600);
+        return;
+      }
+
+      if (result?.permission === "denied") {
+        Toast.show(
+          "Notifications were blocked. Open browser site settings to allow them again.",
+          "error",
+          4200
+        );
+        return;
+      }
+
+      Toast.show("Notification permission was not granted yet.", "info", 2600);
+    } catch (error) {
+      console.error("Notification permission request failed:", error);
+      Toast.show("Could not enable notifications.", "error", 3400);
+    }
+  });
+
+  testBtn.addEventListener("click", async () => {
+    try {
+      const shown = await showTestNotification();
+      if (shown) {
+        Toast.show("Test notification sent.", "success", 2200);
+      } else {
+        Toast.show("Notification test could not be shown.", "error", 3200);
+      }
+    } catch (error) {
+      console.error("Notification test failed:", error);
+      Toast.show("Notification test failed.", "error", 3200);
+    }
+  });
+
+  [masterToggle, dailyToggle, weeklyToggle, contentToggle, reminderTime].forEach((el) => {
+    el.addEventListener("change", onPreferenceChange);
+  });
+
+  window.addEventListener("eduventure:notification-state", (event) => {
+    applyNotificationState(event.detail || getNotificationState());
+  });
+
+  applyNotificationState(getNotificationState());
+}
+
 
 async function init() {
   setupSectionNavigation();
   setupProfileEditing();
   setupPasswordChange();
   setupHistoryUI();
+  setupNotificationPreferences();
 
   await setPersistence(auth, browserLocalPersistence);
 

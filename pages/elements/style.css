@@ -9,10 +9,6 @@ body {
     color: white;
 }
 
-* {
-    transition: all 0.3s;
-}
-
 img {
     -webkit-user-drag: none;
     user-select: none;
@@ -860,6 +856,16 @@ button.btn-outline {
     background: white;
 }
 
+@supports (content-visibility: auto) {
+    .quotes,
+    .feature-section,
+    .promo-banner,
+    footer {
+        content-visibility: auto;
+        contain-intrinsic-size: auto 700px;
+    }
+}
+
 .featured-box {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
@@ -890,6 +896,8 @@ button.btn-outline {
     aspect-ratio: 1 / 1;
     margin-bottom: 15px;
     border-radius: 12px;
+    display: block;
+    object-fit: cover;
 }
 
 .product-card-content {
@@ -1066,6 +1074,7 @@ button.btn-outline {
     width: 100%;
     height: 250px;
     object-fit: cover;
+    display: block;
 }
 
 .market-info {
@@ -1751,6 +1760,9 @@ footer {
 .quotes img {
     max-width: 450px;
     height: auto;
+    aspect-ratio: 1 / 1;
+    object-fit: contain;
+    display: block;
     filter: drop-shadow(0 10px 30px rgba(0, 0, 0, 0.3));
     position: relative;
     z-index: 1;

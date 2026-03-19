@@ -301,6 +301,97 @@
     margin: 0 0 20px 0;
 }
 
+.notification-settings-card {
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 30px;
+}
+
+.notification-permission-row,
+.notification-pref-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 18px;
+    padding: 14px 0;
+}
+
+.notification-permission-row {
+    padding-top: 0;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.notification-pref-row + .notification-pref-row,
+.notification-inline-field + .notification-pref-row {
+    border-top: 1px solid #e5e7eb;
+}
+
+.notification-permission-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.notification-pref-title {
+    margin: 0 0 4px 0;
+    color: #111827;
+    font-weight: 700;
+    font-size: 14px;
+}
+
+.notification-pref-copy,
+#notificationSettingsHint {
+    margin: 0;
+    color: #6b7280;
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.notification-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.notification-toggle input {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+}
+
+.notification-inline-field {
+    display: grid;
+    gap: 10px;
+    padding: 14px 0;
+}
+
+.notification-inline-field label {
+    font-size: 13px;
+    font-weight: 700;
+    color: #111827;
+}
+
+.notification-inline-field select {
+    width: min(220px, 100%);
+    padding: 11px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 10px;
+    font-size: 14px;
+    color: #111827;
+    background: #fff;
+}
+
+.notification-inline-field select:disabled,
+.notification-toggle input:disabled,
+.notification-permission-actions button:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
 
 @media (max-width: 920px) {
     .nav-link span,
@@ -423,6 +514,22 @@
     
     .stat-value {
         font-size: 20px;
+    }
+
+    .notification-permission-row,
+    .notification-pref-row {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .notification-permission-actions {
+        width: 100%;
+        justify-content: stretch;
+    }
+
+    .notification-permission-actions button {
+        flex: 1 1 180px;
+        justify-content: center;
     }
 }
 
