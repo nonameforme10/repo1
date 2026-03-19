@@ -388,6 +388,14 @@ function isAdminUnlocked(mode, testId) {
   return localStorage.getItem(bridgeKey(mode, testId, "admin")) === "true";
 }
 
+function unlockAdminBridge(mode, testId) {
+  localStorage.setItem(bridgeKey(mode, testId, "admin"), "true");
+  alert("Admin unlock enabled on Bridge. Reset button is now visible.");
+  setButtons(mode, testId);
+  setHint(mode, testId);
+  updateAdminFabState(mode, testId);
+}
+
 function enableAdminUnlockHotkey(mode, testId) {
   let buf = "";
   let lastTs = 0;
@@ -402,13 +410,92 @@ function enableAdminUnlockHotkey(mode, testId) {
     if (buf.length > 10) buf = buf.slice(-10);
 
     if (buf.endsWith("RESET")) {
-      localStorage.setItem(bridgeKey(mode, testId, "admin"), "true");
-      alert("✅ Admin unlock enabled on Bridge. Reset button is now visible.");
-      setButtons(mode, testId);
-      setHint(mode, testId);
+      unlockAdminBridge(mode, testId);
       buf = "";
+      return;
     }
   });
+}
+
+function ensureAdminFab(mode, testId) {
+  if (!document.body) return;
+
+  if (!document.getElementById("edu-admin-fab-style")) {
+    const style = document.createElement("style");
+    style.id = "edu-admin-fab-style";
+    style.textContent = `
+      .edu-admin-fab{
+        position: fixed;
+        left: calc(env(safe-area-inset-left, 0px) + 16px);
+        bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+        z-index: 9998;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 92px;
+        padding: 12px 16px;
+        border: 1px solid rgba(15, 23, 42, .18);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, .96);
+        color: #0f172a;
+        box-shadow: 0 14px 28px rgba(15, 23, 42, .16);
+        backdrop-filter: blur(10px);
+        font: inherit;
+        font-size: 13px;
+        font-weight: 800;
+        letter-spacing: .02em;
+        cursor: pointer;
+      }
+      .edu-admin-fab:hover{
+        transform: translateY(-1px);
+        box-shadow: 0 18px 32px rgba(15, 23, 42, .2);
+      }
+      .edu-admin-fab[data-active="true"]{
+        background: #0f172a;
+        color: #ffffff;
+        border-color: #0f172a;
+      }
+      @media (max-width: 480px){
+        .edu-admin-fab{
+          min-width: 0;
+          padding: 11px 14px;
+          font-size: 12px;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  let btn = document.getElementById("eduAdminFab");
+  if (!btn) {
+    btn = document.createElement("button");
+    btn.id = "eduAdminFab";
+    btn.type = "button";
+    btn.className = "edu-admin-fab";
+    btn.setAttribute("aria-label", "Open bridge admin tools");
+    btn.addEventListener("click", () => {
+      if (isAdminUnlocked(mode, testId)) {
+        $("resetBtn")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        $("resetBtn")?.focus();
+        return;
+      }
+
+      const typed = prompt("Type RESET to enable admin tools on this bridge:");
+      if (typed !== "RESET") return;
+      unlockAdminBridge(mode, testId);
+    });
+    document.body.appendChild(btn);
+  }
+
+  updateAdminFabState(mode, testId);
+}
+
+function updateAdminFabState(mode, testId) {
+  const btn = document.getElementById("eduAdminFab");
+  if (!btn) return;
+  const active = isAdminUnlocked(mode, testId);
+  btn.dataset.active = active ? "true" : "false";
+  btn.textContent = active ? "Admin on" : "Admin";
 }
 
 
@@ -433,6 +520,7 @@ function setButtons(mode, testId) {
   
   const admin = isAdminUnlocked(mode, testId);
   reset.style.display = admin ? "inline-flex" : "none";
+  updateAdminFabState(mode, testId);
 
   if (admin) {
     reset.onclick = () => {
@@ -532,6 +620,7 @@ async function main() {
   }
 
   enableAdminUnlockHotkey(mode, test);
+  ensureAdminFab(mode, test);
 
   setHeader(mode, test);
   renderParts(mode, test);

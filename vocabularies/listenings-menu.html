@@ -819,6 +819,64 @@
         setTimeout(() => adminPwInput?.focus(), 60);
       }
 
+      function ensureAdminFab() {
+        if (!document.body) return;
+
+        if (!document.getElementById("edu-admin-fab-style")) {
+          const style = document.createElement("style");
+          style.id = "edu-admin-fab-style";
+          style.textContent = `
+            .edu-admin-fab{
+              position: fixed;
+              left: calc(env(safe-area-inset-left, 0px) + 16px);
+              bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+              z-index: 2100;
+              display: inline-flex;
+              align-items: center;
+              justify-content: center;
+              min-width: 92px;
+              padding: 12px 16px;
+              margin: 0;
+              border: 1px solid rgba(15, 23, 42, .16);
+              border-radius: 999px;
+              background: rgba(255, 255, 255, .96);
+              color: #0f172a;
+              box-shadow: 0 14px 28px rgba(15, 23, 42, .18);
+              backdrop-filter: blur(10px);
+              font: inherit;
+              font-size: 13px;
+              font-weight: 800;
+              letter-spacing: .02em;
+              white-space: nowrap;
+              cursor: pointer;
+            }
+            .edu-admin-fab:hover{
+              transform: translateY(-1px);
+              background: #ffffff;
+            }
+            @media (max-width: 480px){
+              .edu-admin-fab{
+                min-width: 0;
+                padding: 11px 14px;
+                font-size: 12px;
+              }
+            }
+          `;
+          document.head.appendChild(style);
+        }
+
+        if (document.getElementById("eduAdminFab")) return;
+
+        const btn = document.createElement("button");
+        btn.id = "eduAdminFab";
+        btn.type = "button";
+        btn.className = "edu-admin-fab";
+        btn.textContent = "Admin";
+        btn.setAttribute("aria-label", "Open admin panel");
+        btn.addEventListener("click", openAdminPanel);
+        document.body.appendChild(btn);
+      }
+
       function closeAdminPanel() {
         if (!adminOverlay) return;
         adminOverlay.style.display = "none";
@@ -887,6 +945,7 @@
       }
 
       adminForm?.addEventListener("submit", (e) => { e.preventDefault(); void applyPassword(); });
+      ensureAdminFab();
 
       let adminBuffer = "";
       let adminTimer = null;
@@ -1114,6 +1173,4 @@ renderListenings(user.uid).catch((e) => {
 <script src="/sw.js"></script>
 </body>
 </html>
-
-
 

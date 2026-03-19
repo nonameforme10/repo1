@@ -457,6 +457,68 @@ window.makeAdminHash = async function(password) {
   return { ADMIN_SALT_HEX: toHex(salt), ADMIN_HASH_HEX: toHex(new Uint8Array(digest)) };
 };
 
+function ensureAdminFab() {
+  if (!document.body) return;
+
+  if (!document.getElementById("edu-admin-fab-style")) {
+    const style = document.createElement("style");
+    style.id = "edu-admin-fab-style";
+    style.textContent = `
+      .edu-admin-fab{
+        position: fixed;
+        left: calc(env(safe-area-inset-left, 0px) + 16px);
+        bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+        z-index: 9998;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 92px;
+        padding: 12px 16px;
+        margin: 0;
+        border: 1px solid rgba(17, 24, 39, .16);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, .96);
+        color: #111827;
+        box-shadow: 0 14px 28px rgba(17, 24, 39, .18);
+        backdrop-filter: blur(10px);
+        font: inherit;
+        font-size: 13px;
+        font-weight: 800;
+        letter-spacing: .02em;
+        white-space: nowrap;
+        cursor: pointer;
+        flex: none;
+        width: auto;
+      }
+      .edu-admin-fab:hover{
+        transform: translateY(-1px);
+        background: #ffffff;
+      }
+      @media (max-width: 480px){
+        .edu-admin-fab{
+          min-width: 0;
+          padding: 11px 14px;
+          font-size: 12px;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  if (document.getElementById("eduAdminFab")) return;
+
+  const btn = document.createElement("button");
+  btn.id = "eduAdminFab";
+  btn.type = "button";
+  btn.className = "edu-admin-fab";
+  btn.textContent = "Admin";
+  btn.setAttribute("aria-label", "Open admin tools");
+  btn.addEventListener("click", () => {
+    void adminResetFlow();
+  });
+  document.body.appendChild(btn);
+}
+
 const readingText = document.getElementById("readingText");
 
 function wrapWords(element) {
@@ -1266,6 +1328,12 @@ window.onload = async () => {
     ensureEndTestButton();
   }
 };
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", ensureAdminFab, { once: true });
+} else {
+  ensureAdminFab();
+}
 
 document.addEventListener("contextmenu", e => e.preventDefault());
 let adminBuffer = "";

@@ -36,7 +36,7 @@
         button.hidden = false;
         button.disabled = false;
         label.textContent = "Install app";
-        setHint("Install EduVenture for quick access and a full-screen app experience.");
+        setHint("Install EduVenture for quick access.");
         refreshIcons();
         return;
       }
