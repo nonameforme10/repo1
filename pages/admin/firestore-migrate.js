@@ -19,6 +19,7 @@ import { ref, get, set } from "https://www.gstatic.com/firebasejs/9.23.0/firebas
 import {
   collection,
   doc,
+  getDoc,
   writeBatch,
 } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
 
@@ -49,7 +50,9 @@ function log(message = "") {
 
 function sanitizeObject(value) {
   if (Array.isArray(value)) {
-    return value.map((item) => sanitizeObject(item));
+    return value
+      .map((item) => sanitizeObject(item))
+      .filter((item) => typeof item !== "undefined");
   }
   if (!value || typeof value !== "object") return value;
 
@@ -61,10 +64,37 @@ function sanitizeObject(value) {
   return out;
 }
 
+function normalizeLegacyAnswerKey(raw) {
+  if (!raw || typeof raw !== "object") return {};
+
+  if (Array.isArray(raw)) {
+    const out = {};
+    for (let i = 1; i < raw.length; i += 1) {
+      const item = sanitizeObject(raw[i]);
+      if (item == null) continue;
+      out[String(i)] = Array.isArray(item)
+        ? item.filter((child) => child != null)
+        : [item];
+    }
+    return out;
+  }
+
+  const out = {};
+  Object.entries(raw).forEach(([key, value]) => {
+    const clean = sanitizeObject(value);
+    if (clean == null) return;
+    out[key] = Array.isArray(clean)
+      ? clean.filter((child) => child != null)
+      : clean;
+  });
+  return out;
+}
+
 function createBatchWriter() {
   let batch = writeBatch(firestore);
   let ops = 0;
   let commitCount = 0;
+  const existingCache = new Map();
 
   async function flush() {
     if (!ops) return;
@@ -83,9 +113,27 @@ function createBatchWriter() {
     }
   }
 
+  async function queueSetIfMissing(refToWrite, payload, options) {
+    const key = String(refToWrite?.path || "");
+    if (key) {
+      if (!existingCache.has(key)) {
+        const snap = await getDoc(refToWrite);
+        existingCache.set(key, snap.exists());
+      }
+      if (existingCache.get(key) === true) {
+        return false;
+      }
+    }
+
+    await queueSet(refToWrite, payload, options);
+    if (key) existingCache.set(key, true);
+    return true;
+  }
+
   return {
     flush,
     queueSet,
+    queueSetIfMissing,
   };
 }
 
@@ -104,6 +152,16 @@ async function getRtdbValueSafe(path) {
   }
 }
 
+const rtdbExistsCache = new Map();
+
+async function rtdbPathExists(path) {
+  if (rtdbExistsCache.has(path)) return rtdbExistsCache.get(path);
+  const snap = await get(ref(rtdb, path));
+  const exists = snap.exists();
+  rtdbExistsCache.set(path, exists);
+  return exists;
+}
+
 function safeKey(value) {
   return String(value || "").replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 120);
 }
@@ -111,9 +169,9 @@ function safeKey(value) {
 function extractLegacyQuestions(payload) {
   if (!payload || typeof payload !== "object") return {};
   if (payload.questions && typeof payload.questions === "object") {
-    return sanitizeObject(payload.questions);
+    return normalizeLegacyAnswerKey(payload.questions);
   }
-  return sanitizeObject(payload);
+  return normalizeLegacyAnswerKey(payload);
 }
 
 function extractLegacyVocabularyWords(payload) {
@@ -159,22 +217,24 @@ async function migratePhones(writer) {
 
   const phones = sanitizeObject(result.value || {});
   let count = 0;
+  let skippedExisting = 0;
 
   for (const [phoneKey, uid] of Object.entries(phones)) {
     if (!phoneKey || !uid) continue;
     const ts = Date.now();
-    await writer.queueSet(doc(firestore, "phones", phoneKey), {
+    const queued = await writer.queueSetIfMissing(doc(firestore, "phones", phoneKey), {
       phoneKey,
       uid: String(uid),
       createdAtMs: ts,
       updatedAtMs: ts,
       migratedFrom: "rtdb",
     });
-    count += 1;
+    if (queued) count += 1;
+    else skippedExisting += 1;
   }
 
-  log(`Queued ${count} phone index documents.`);
-  return { skipped: false, count };
+  log(`Queued ${count} phone index documents${skippedExisting ? ` and skipped ${skippedExisting} existing.` : "."}`);
+  return { skipped: false, count, skippedExisting };
 }
 
 async function migrateGlobalChat(writer) {
@@ -187,34 +247,42 @@ async function migrateGlobalChat(writer) {
     return;
   }
 
-  await writer.queueSet(doc(firestore, "global_chat", "main"), {
+  const roomQueued = await writer.queueSetIfMissing(doc(firestore, "global_chat", "main"), {
     roomId: "main",
     updatedAtMs: Date.now(),
     migratedFrom: "rtdb",
   }, { merge: true });
 
   let messageCount = 0;
+  let skippedMessages = 0;
   for (const [messageId, payload] of Object.entries(messages)) {
     if (!messageId || !payload || typeof payload !== "object") continue;
-    await writer.queueSet(doc(globalChatMessagesCollection(), messageId), {
+    const queued = await writer.queueSetIfMissing(doc(globalChatMessagesCollection(), messageId), {
       ...payload,
       migratedFrom: "rtdb",
     });
-    messageCount += 1;
+    if (queued) messageCount += 1;
+    else skippedMessages += 1;
   }
 
   let typingCount = 0;
+  let skippedTyping = 0;
   for (const [uid, payload] of Object.entries(typing)) {
     if (!uid || !payload || typeof payload !== "object") continue;
-    await writer.queueSet(doc(globalChatTypingCollection(), uid), {
+    const queued = await writer.queueSetIfMissing(doc(globalChatTypingCollection(), uid), {
       ...payload,
       uid,
       migratedFrom: "rtdb",
     });
-    typingCount += 1;
+    if (queued) typingCount += 1;
+    else skippedTyping += 1;
   }
 
-  log(`Queued ${messageCount} chat messages and ${typingCount} typing documents.`);
+  log(
+    `Queued ${messageCount} chat messages and ${typingCount} typing documents` +
+    `${roomQueued ? "" : " (room doc already existed)"}` +
+    `${skippedMessages || skippedTyping ? `, skipped ${skippedMessages + skippedTyping} existing child docs.` : "."}`
+  );
 }
 
 async function migrateOnline(writer) {
@@ -231,13 +299,13 @@ async function migrateOnline(writer) {
     return { skipped: true, reason: "permission-denied" };
   }
 
-  await writer.queueSet(doc(firestore, "online", clubId), {
+  const clubQueued = await writer.queueSetIfMissing(doc(firestore, "online", clubId), {
     clubId,
     updatedAtMs: Date.now(),
     migratedFrom: "rtdb",
   }, { merge: true });
 
-  await writer.queueSet(doc(collection(doc(firestore, "online", clubId), "teachers"), teacherId), {
+  const teacherQueued = await writer.queueSetIfMissing(doc(collection(doc(firestore, "online", clubId), "teachers"), teacherId), {
     clubId,
     teacherId,
     updatedAtMs: Date.now(),
@@ -246,32 +314,39 @@ async function migrateOnline(writer) {
 
   let moduleCount = 0;
   let commentCount = 0;
+  let skippedExisting = 0;
   const modules = sanitizeObject(modulesResult.value || {});
   const commentsByModule = sanitizeObject(commentsResult.value || {});
 
   for (const [moduleId, payload] of Object.entries(modules)) {
     if (!moduleId || !payload || typeof payload !== "object") continue;
-    await writer.queueSet(doc(onlineModulesCollection(clubId, teacherId), moduleId), {
+    const queued = await writer.queueSetIfMissing(doc(onlineModulesCollection(clubId, teacherId), moduleId), {
       ...payload,
       migratedFrom: "rtdb",
     });
-    moduleCount += 1;
+    if (queued) moduleCount += 1;
+    else skippedExisting += 1;
   }
 
   for (const [moduleId, comments] of Object.entries(commentsByModule)) {
     if (!moduleId || !comments || typeof comments !== "object") continue;
     for (const [commentId, payload] of Object.entries(comments)) {
       if (!commentId || !payload || typeof payload !== "object") continue;
-      await writer.queueSet(doc(onlineCommentsCollection(clubId, teacherId, moduleId), commentId), {
+      const queued = await writer.queueSetIfMissing(doc(onlineCommentsCollection(clubId, teacherId, moduleId), commentId), {
         ...payload,
         migratedFrom: "rtdb",
       });
-      commentCount += 1;
+      if (queued) commentCount += 1;
+      else skippedExisting += 1;
     }
   }
 
-  log(`Queued ${moduleCount} online modules and ${commentCount} online comments from ${clubId}/${teacherId}.`);
-  return { skipped: false, moduleCount, commentCount };
+  log(
+    `Queued ${moduleCount} online modules and ${commentCount} online comments from ${clubId}/${teacherId}` +
+    `${(!clubQueued || !teacherQueued) ? " (some parent docs already existed)" : ""}` +
+    `${skippedExisting ? `, skipped ${skippedExisting} existing docs.` : "."}`
+  );
+  return { skipped: false, moduleCount, commentCount, skippedExisting };
 }
 
 async function migrateReadings(writer) {
@@ -285,32 +360,35 @@ async function migrateReadings(writer) {
   const tests = sanitizeObject(result.value || {});
   let testCount = 0;
   let partCount = 0;
+  let skippedExisting = 0;
 
   for (const [testId, parts] of Object.entries(tests)) {
     if (!testId || !parts || typeof parts !== "object") continue;
-    await writer.queueSet(readingTestDocRef(testId), {
+    const testQueued = await writer.queueSetIfMissing(readingTestDocRef(testId), {
       testId,
       updatedAtMs: Date.now(),
       migratedFrom: "rtdb",
     }, { merge: true });
-    testCount += 1;
+    if (testQueued) testCount += 1;
+    else skippedExisting += 1;
 
     for (const [partId, payload] of Object.entries(parts)) {
       if (!partId || !payload || typeof payload !== "object") continue;
       const questions = extractLegacyQuestions(payload);
-      await writer.queueSet(readingPartDocRef(testId, partId), {
+      const queued = await writer.queueSetIfMissing(readingPartDocRef(testId, partId), {
         testId,
         partId,
         questions,
         updatedAtMs: Date.now(),
         migratedFrom: "rtdb",
       }, { merge: true });
-      partCount += 1;
+      if (queued) partCount += 1;
+      else skippedExisting += 1;
     }
   }
 
-  log(`Queued ${testCount} reading tests and ${partCount} reading parts.`);
-  return { skipped: false, testCount, partCount };
+  log(`Queued ${testCount} reading tests and ${partCount} reading parts${skippedExisting ? `, skipped ${skippedExisting} existing docs.` : "."}`);
+  return { skipped: false, testCount, partCount, skippedExisting };
 }
 
 async function migrateListening(writer) {
@@ -324,36 +402,39 @@ async function migrateListening(writer) {
   const tests = sanitizeObject(result.value || {});
   let testCount = 0;
   let sectionCount = 0;
+  let skippedExisting = 0;
 
   for (const [testId, sections] of Object.entries(tests)) {
     if (!testId || !sections || typeof sections !== "object") continue;
-    await writer.queueSet(listeningTestDocRef(testId), {
+    const testQueued = await writer.queueSetIfMissing(listeningTestDocRef(testId), {
       testId,
       updatedAtMs: Date.now(),
       migratedFrom: "rtdb",
     }, { merge: true });
-    testCount += 1;
+    if (testQueued) testCount += 1;
+    else skippedExisting += 1;
 
     for (const [sectionId, payload] of Object.entries(sections)) {
       if (!sectionId || !payload || typeof payload !== "object") continue;
       const questions = extractLegacyQuestions(payload);
-      await writer.queueSet(listeningSectionDocRef(testId, sectionId), {
+      const queued = await writer.queueSetIfMissing(listeningSectionDocRef(testId, sectionId), {
         testId,
         sectionId,
         questions,
         updatedAtMs: Date.now(),
         migratedFrom: "rtdb",
       }, { merge: true });
-      sectionCount += 1;
+      if (queued) sectionCount += 1;
+      else skippedExisting += 1;
     }
   }
 
-  log(`Queued ${testCount} listening tests and ${sectionCount} listening sections.`);
-  return { skipped: false, testCount, sectionCount };
+  log(`Queued ${testCount} listening tests and ${sectionCount} listening sections${skippedExisting ? `, skipped ${skippedExisting} existing docs.` : "."}`);
+  return { skipped: false, testCount, sectionCount, skippedExisting };
 }
 
 async function migrateVocabularyType(writer, type, modules, passwords = {}) {
-  await writer.queueSet(vocabularyTypeDocRef(type), {
+  const typeQueued = await writer.queueSetIfMissing(vocabularyTypeDocRef(type), {
     type,
     updatedAtMs: Date.now(),
     migratedFrom: "rtdb",
@@ -361,6 +442,7 @@ async function migrateVocabularyType(writer, type, modules, passwords = {}) {
 
   let moduleCount = 0;
   let wordCount = 0;
+  let skippedExisting = typeQueued ? 0 : 1;
 
   for (const [moduleId, payload] of Object.entries(modules || {})) {
     if (!moduleId || !payload || typeof payload !== "object") continue;
@@ -368,7 +450,7 @@ async function migrateVocabularyType(writer, type, modules, passwords = {}) {
     const password = type === "listeningwords" ? extractPasswordNode(passwords, moduleId) : null;
     const count = countVocabularyWords(words);
 
-    await writer.queueSet(vocabularyModuleDocRef(type, moduleId), {
+    const queued = await writer.queueSetIfMissing(vocabularyModuleDocRef(type, moduleId), {
       moduleId,
       type,
       words,
@@ -378,16 +460,21 @@ async function migrateVocabularyType(writer, type, modules, passwords = {}) {
       ...(password ? { password } : {}),
     }, { merge: true });
 
-    moduleCount += 1;
-    wordCount += count;
+    if (queued) {
+      moduleCount += 1;
+      wordCount += count;
+    } else {
+      skippedExisting += 1;
+    }
   }
 
-  return { moduleCount, wordCount };
+  return { moduleCount, wordCount, skippedExisting };
 }
 
 async function migrateVocabularyRooms(type, modules) {
   let moduleCount = 0;
   let roomCount = 0;
+  let skippedExisting = 0;
 
   for (const [moduleId, payload] of Object.entries(modules || {})) {
     if (!moduleId || !payload || typeof payload !== "object") continue;
@@ -399,10 +486,16 @@ async function migrateVocabularyRooms(type, modules) {
 
     for (const [roomId, roomPayload] of entries) {
       try {
+        const path = `vocabularyRooms/${type}/${moduleId}/pendingRooms/${roomId}`;
+        if (await rtdbPathExists(path)) {
+          skippedExisting += 1;
+          continue;
+        }
         await set(
-          ref(rtdb, `vocabularyRooms/${type}/${moduleId}/pendingRooms/${roomId}`),
+          ref(rtdb, path),
           sanitizeObject(roomPayload)
         );
+        rtdbExistsCache.set(path, true);
       } catch (error) {
         const message = String(error?.message || "");
         if (/permission denied/i.test(message)) {
@@ -424,8 +517,11 @@ async function migrateVocabularyRooms(type, modules) {
   if (roomCount > 0) {
     log(`Copied ${roomCount} pending vocabulary room${roomCount === 1 ? "" : "s"} into vocabularyRooms.`);
   }
+  if (skippedExisting > 0) {
+    log(`Skipped ${skippedExisting} existing vocabulary room${skippedExisting === 1 ? "" : "s"} in vocabularyRooms/${type}.`);
+  }
 
-  return { skipped: false, moduleCount, roomCount };
+  return { skipped: false, moduleCount, roomCount, skippedExisting };
 }
 
 async function migrateVocabularies(writer) {
@@ -457,7 +553,10 @@ async function migrateVocabularies(writer) {
   log(
     `Queued ${unitResult.moduleCount} unit vocabulary modules, ` +
     `${listeningResult.moduleCount} listening vocabulary modules, and ` +
-    `${unitResult.wordCount + listeningResult.wordCount} vocabulary words.`
+    `${unitResult.wordCount + listeningResult.wordCount} vocabulary words` +
+    `${(unitResult.skippedExisting || listeningResult.skippedExisting)
+      ? `, skipped ${unitResult.skippedExisting + listeningResult.skippedExisting} existing Firestore vocab docs.`
+      : "."}`
   );
 
   return {
@@ -480,28 +579,33 @@ async function seedFirestoreAdmins(writer) {
 
   const admins = sanitizeObject(result.value || {});
   let count = 0;
+  let skippedExisting = 0;
+  let sawAnyAdmin = false;
 
   for (const [uid, active] of Object.entries(admins)) {
     if (!uid || active !== true) continue;
-    await writer.queueSet(doc(firestore, "admins", uid), {
+    sawAnyAdmin = true;
+    const queued = await writer.queueSetIfMissing(doc(firestore, "admins", uid), {
       active: true,
       syncedFrom: "rtdb",
       syncedAtMs: Date.now(),
     }, { merge: true });
-    count += 1;
+    if (queued) count += 1;
+    else skippedExisting += 1;
   }
 
-  if (!count && currentUser?.uid) {
-    await writer.queueSet(doc(firestore, "admins", currentUser.uid), {
+  if (!sawAnyAdmin && currentUser?.uid) {
+    const queued = await writer.queueSetIfMissing(doc(firestore, "admins", currentUser.uid), {
       active: true,
       email: String(currentUser.email || ""),
       syncedFrom: "rtdb",
       syncedAtMs: Date.now(),
     }, { merge: true });
-    count = 1;
+    if (queued) count = 1;
+    else skippedExisting += 1;
   }
 
-  log(`Queued ${count} Firestore admin document${count === 1 ? "" : "s"}.`);
+  log(`Queued ${count} Firestore admin document${count === 1 ? "" : "s"}${skippedExisting ? ` and skipped ${skippedExisting} existing.` : "."}`);
 }
 
 async function runMigration() {
