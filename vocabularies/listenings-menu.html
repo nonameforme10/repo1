@@ -598,7 +598,18 @@
       let _uid = null;
       let _names = [];
       let _pwMap = {}; 
-       let _access = {};
+      let _access = {};
+      let _isAdmin = false;
+
+      async function checkAdmin(uid) {
+        if (!uid) return false;
+        try {
+          const snap = await get(ref(db, `admins/${uid}`));
+          return snap.exists() && snap.val() === true;
+        } catch {
+          return false;
+        }
+      }
 
 
       const toHex = (bytes) => [...bytes].map(b => b.toString(16).padStart(2, "0")).join("");
@@ -807,7 +818,7 @@
       }
 
       function openAdminPanel() {
-        if (!adminOverlay) return;
+        if (!adminOverlay || !_isAdmin) return;
         fillAdminSelect();
         adminOverlay.style.display = "flex";
         adminOverlay.setAttribute("aria-hidden", "false");
@@ -820,7 +831,10 @@
       }
 
       function ensureAdminFab() {
-        if (!document.body) return;
+        if (!document.body || !_isAdmin) {
+          document.getElementById("eduAdminFab")?.remove();
+          return;
+        }
 
         if (!document.getElementById("edu-admin-fab-style")) {
           const style = document.createElement("style");
@@ -945,14 +959,13 @@
       }
 
       adminForm?.addEventListener("submit", (e) => { e.preventDefault(); void applyPassword(); });
-      ensureAdminFab();
 
       let adminBuffer = "";
       let adminTimer = null;
 
       document.addEventListener("keydown", (e) => {
         const isCmdOrCtrl = e.ctrlKey || e.metaKey;
-        const combo = isCmdOrCtrl && e.shiftKey && e.altKey;
+        const combo = _isAdmin && isCmdOrCtrl && e.shiftKey && e.altKey;
         if (!combo) { adminBuffer = ""; return; }
 
         const k = String(e.key).toUpperCase();
@@ -1082,14 +1095,16 @@
       }
         try { await setPersistence(auth, browserLocalPersistence); } catch (e) {}
 
-        onAuthStateChanged(auth, (user) => {
+        onAuthStateChanged(auth, async (user) => {
         if (!user) { const ret = location.href;
   try { sessionStorage.setItem("edu_return_url", ret); } catch (e) {}
   try { localStorage.setItem("edu_return_url", ret); } catch (e) {}
   location.replace(`/pages/auth/reg.html?return=${encodeURIComponent(ret)}`);
   return;
 }
-renderListenings(user.uid).catch((e) => {
+        _isAdmin = await checkAdmin(user.uid);
+        ensureAdminFab();
+        renderListenings(user.uid).catch((e) => {
           console.error(e);
           showMessage("Failed to load listenings (check rules / connection). ");
         });

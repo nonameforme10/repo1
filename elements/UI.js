@@ -864,21 +864,25 @@
   };
 
   const log = (...args) => ENABLE_LOGS && console.log("[FOCUS-TRAP]", ...args);
+  const FOCUSABLE_SELECTOR = [
+    'a[href]',
+    'button:not([disabled])',
+    'textarea:not([disabled])',
+    'input:not([disabled]):not([type="hidden"])',
+    'select:not([disabled])',
+    '[tabindex]:not([tabindex="-1"])',
+    '[contenteditable="true"]',
+    'audio[controls]',
+    'video[controls]',
+  ].join(',');
+
+  function nodeCouldAffectFocusables(node) {
+    if (!node || node.nodeType !== Node.ELEMENT_NODE) return false;
+    return node.matches(FOCUSABLE_SELECTOR) || !!node.querySelector(FOCUSABLE_SELECTOR);
+  }
 
   function getFocusableElements() {
-    const selector = [
-      'a[href]',
-      'button:not([disabled])',
-      'textarea:not([disabled])',
-      'input:not([disabled]):not([type="hidden"])',
-      'select:not([disabled])',
-      '[tabindex]:not([tabindex="-1"])',
-      '[contenteditable="true"]',
-      'audio[controls]',
-      'video[controls]',
-    ].join(',');
-
-    return Array.from(document.querySelectorAll(selector)).filter(el => {
+    return Array.from(document.querySelectorAll(FOCUSABLE_SELECTOR)).filter(el => {
       return (
         el.offsetWidth > 0 &&
         el.offsetHeight > 0 &&
@@ -1205,9 +1209,18 @@
 
     const ensureFocusable = () => {
       const focusableElements = getFocusableElements();
+      const bodyTabIndex = document.body.getAttribute('tabindex');
+
       if (focusableElements.length === 0) {
-        document.body.setAttribute('tabindex', '0');
+        if (bodyTabIndex !== '0') {
+          document.body.setAttribute('tabindex', '0');
+        }
         log("No focusable elements found, made body focusable");
+        return;
+      }
+
+      if (bodyTabIndex === '0') {
+        document.body.removeAttribute('tabindex');
       }
     };
 
@@ -1217,7 +1230,34 @@
       ensureFocusable();
     }
 
-    const observer = new MutationObserver(ensureFocusable);
+    let ensureFocusableFrame = 0;
+    const queueEnsureFocusable = () => {
+      if (ensureFocusableFrame) return;
+      ensureFocusableFrame = window.requestAnimationFrame(() => {
+        ensureFocusableFrame = 0;
+        ensureFocusable();
+      });
+    };
+
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.type !== 'childList') continue;
+
+        for (const node of mutation.addedNodes) {
+          if (nodeCouldAffectFocusables(node)) {
+            queueEnsureFocusable();
+            return;
+          }
+        }
+
+        for (const node of mutation.removedNodes) {
+          if (nodeCouldAffectFocusables(node)) {
+            queueEnsureFocusable();
+            return;
+          }
+        }
+      }
+    });
     observer.observe(document.body, { childList: true, subtree: true });
   }
 

@@ -4,8 +4,18 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Eduventure - Global Chat</title>
-  <script src="https://unpkg.com/lucide@latest"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@0.577.0/dist/umd/lucide.min.js" defer></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    rel="preload"
+    as="style"
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+    onload="this.onload=null;this.rel='stylesheet'"
+  >
+  <noscript>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  </noscript>
   <link rel="stylesheet" href="/pages/elements/style.css">
   <style>
       * { box-sizing: border-box; }
@@ -280,7 +290,8 @@
       }
   </style>
 <link rel="icon" href="/favicon.png">
-<script src="/assets/UI.js" defer></script>
+<script src="/elements/UI.js" defer></script>
+<script src="/pages/elements/script.js" defer></script>
 </head>
 
 <body>
@@ -308,7 +319,15 @@
 
         <nav class="nav-main">
             <div class="logo-section" onclick="location.href='/pages/home/home page.html'">
-                <img style="cursor: pointer;" src="/assets/logo.png" alt="icon" class="icon-box">
+                <img
+                    style="cursor: pointer;"
+                    src="/assets/logo.png"
+                    alt="icon"
+                    class="icon-box"
+                    width="482"
+                    height="264"
+                    decoding="async"
+                >
                 <div style="cursor: pointer;" class="logo-text">
                     <h1><span style="color: #ffffff;">EDU</span><span style="color: #fbbf24;">VENTURE</span></h1>
                     <p>PREMIUM LEARNING</p>
@@ -407,11 +426,7 @@
       </div>
     </div>
   </div>
-  <script src="/pages/elements/script.js"></script>
   <script type="module" src="global.chat.js"></script>
-  <script src="/elements/UI.js"></script>
-  <script src="/sw.js"></script>
 
 </body>
 </html>
-

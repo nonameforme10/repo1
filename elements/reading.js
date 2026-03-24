@@ -35,6 +35,28 @@ const authReady = new Promise((resolve) => {
   });
 });
 
+let currentUser = null;
+let isAdminUser = false;
+
+async function checkAdmin(uid) {
+  if (!uid) return false;
+  try {
+    const snap = await get(ref(db, `admins/${uid}`));
+    return snap.exists() && snap.val() === true;
+  } catch {
+    return false;
+  }
+}
+
+function syncAdminUi() {
+  const btn = document.getElementById("eduAdminFab");
+  if (!isAdminUser) {
+    btn?.remove();
+    return;
+  }
+  ensureAdminFab();
+}
+
 function _eduSegments() {
   let p = window.location.pathname || "/";
   p = p.replace(/\/+/g, "/"); 
@@ -405,60 +427,26 @@ function normalizeQIdsToNumbers() {
   });
 }
 
-const ADMIN_SALT_HEX = "54ce55256fdf06d56c022779d46a713b";
-const ADMIN_HASH_HEX = "e56bd3e717886a85c9e3336bf4ed7fb1d564be6b46dfa17d102c930588d65f00";
-
-const toHex = bytes => [...bytes].map(b => b.toString(16).padStart(2, "0")).join("");
-
-function hexToBytes(hex) {
-  const clean = String(hex).replace(/[^0-9a-f]/gi, "");
-  if (clean.length % 2 !== 0) throw new Error("Invalid hex length");
-  const out = new Uint8Array(clean.length / 2);
-  for (let i = 0; i < out.length; i++) out[i] = parseInt(clean.substr(i * 2, 2), 16);
-  return out;
-}
-
-async function sha256Hex(bytes) {
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return toHex(new Uint8Array(digest));
-}
-
-async function verifyAdminPassword(pw) {
-  const saltBytes = hexToBytes(ADMIN_SALT_HEX);
-  const pwBytes = new TextEncoder().encode(String(pw));
-  const combined = new Uint8Array(saltBytes.length + pwBytes.length);
-  combined.set(saltBytes, 0);
-  combined.set(pwBytes, saltBytes.length);
-  const hashHex = await sha256Hex(combined);
-  return hashHex.toLowerCase() === String(ADMIN_HASH_HEX).toLowerCase();
-}
-
 async function adminResetFlow() {
-  const pw = prompt("Admin password:");
-  if (!pw) return;
-  const ok = await verifyAdminPassword(pw);
-  if (!ok) { alert("❌ Wrong admin password."); return; }
+  if (!isAdminUser) {
+    alert("Admin only.");
+    return;
+  }
+
+  const ok = confirm("Reset this test attempt on this device?");
+  if (!ok) return;
+
   Object.keys(localStorage)
     .filter(k => k.startsWith(STORAGE_PREFIX))
     .forEach(k => localStorage.removeItem(k));
+
   alert("✅ Reset complete.");
   location.reload();
 }
 
-window.makeAdminHash = async function(password) {
-  const salt = crypto.getRandomValues(new Uint8Array(16));
-  const pwBytes = new TextEncoder().encode(String(password));
-  const combined = new Uint8Array(salt.length + pwBytes.length);
-  combined.set(salt, 0);
-  combined.set(pwBytes, salt.length);
-  const digest = await crypto.subtle.digest("SHA-256", combined);
-  console.log("ADMIN_SALT_HEX =", toHex(salt));
-  console.log("ADMIN_HASH_HEX =", toHex(new Uint8Array(digest)));
-  return { ADMIN_SALT_HEX: toHex(salt), ADMIN_HASH_HEX: toHex(new Uint8Array(digest)) };
-};
-
 function ensureAdminFab() {
-  if (!document.body) return;
+
+  if (!document.body || !isAdminUser) return;
 
   if (!document.getElementById("edu-admin-fab-style")) {
     const style = document.createElement("style");
@@ -1329,10 +1317,17 @@ window.onload = async () => {
   }
 };
 
+
+onAuthStateChanged(auth, async (user) => {
+  currentUser = user;
+  isAdminUser = user ? await checkAdmin(user.uid) : false;
+  syncAdminUi();
+});
+
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", ensureAdminFab, { once: true });
+  document.addEventListener("DOMContentLoaded", syncAdminUi, { once: true });
 } else {
-  ensureAdminFab();
+  syncAdminUi();
 }
 
 document.addEventListener("contextmenu", e => e.preventDefault());
@@ -1349,7 +1344,7 @@ document.addEventListener("keydown", (e) => {
     e.preventDefault();
   }
 
-  const adminCombo = (isCmdOrCtrl && e.shiftKey);
+  const adminCombo = (isCmdOrCtrl && e.shiftKey && isAdminUser);
 
   if (adminCombo) {
     const k = String(e.key).toUpperCase();

@@ -1,4 +1,4 @@
-
+﻿
 
 
 
@@ -39,6 +39,19 @@ function parseParams() {
   const test = normalize(u.searchParams.get("test"));  
   const rawParts = u.searchParams.get("parts");        
   return { mode, test, rawParts };
+}
+
+let currentUser = null;
+let isAdminUser = false;
+
+async function checkAdmin(uid) {
+  if (!uid) return false;
+  try {
+    const snap = await get(ref(db, `admins/${uid}`));
+    return snap.exists() && snap.val() === true;
+  } catch {
+    return false;
+  }
 }
 
 function bridgeKey(mode, testId, suffix) {
@@ -385,40 +398,25 @@ function setHint(mode, testId) {
 
 
 function isAdminUnlocked(mode, testId) {
-  return localStorage.getItem(bridgeKey(mode, testId, "admin")) === "true";
+  return !!isAdminUser;
 }
 
 function unlockAdminBridge(mode, testId) {
-  localStorage.setItem(bridgeKey(mode, testId, "admin"), "true");
-  alert("Admin unlock enabled on Bridge. Reset button is now visible.");
+  if (!isAdminUser) return;
   setButtons(mode, testId);
   setHint(mode, testId);
   updateAdminFabState(mode, testId);
 }
 
 function enableAdminUnlockHotkey(mode, testId) {
-  let buf = "";
-  let lastTs = 0;
-
-  window.addEventListener("keydown", (e) => {
-    if (!(e.ctrlKey && e.shiftKey && e.altKey)) return;
-    const now = Date.now();
-    if (now - lastTs > 1200) buf = "";
-    lastTs = now;
-
-    if (e.key.length === 1) buf += e.key.toUpperCase();
-    if (buf.length > 10) buf = buf.slice(-10);
-
-    if (buf.endsWith("RESET")) {
-      unlockAdminBridge(mode, testId);
-      buf = "";
-      return;
-    }
-  });
+  // Disabled: admin tools now follow the authenticated Firebase admin role.
 }
 
 function ensureAdminFab(mode, testId) {
-  if (!document.body) return;
+  if (!document.body || !isAdminUser) {
+    document.getElementById("eduAdminFab")?.remove();
+    return;
+  }
 
   if (!document.getElementById("edu-admin-fab-style")) {
     const style = document.createElement("style");
@@ -474,15 +472,8 @@ function ensureAdminFab(mode, testId) {
     btn.className = "edu-admin-fab";
     btn.setAttribute("aria-label", "Open bridge admin tools");
     btn.addEventListener("click", () => {
-      if (isAdminUnlocked(mode, testId)) {
-        $("resetBtn")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-        $("resetBtn")?.focus();
-        return;
-      }
-
-      const typed = prompt("Type RESET to enable admin tools on this bridge:");
-      if (typed !== "RESET") return;
-      unlockAdminBridge(mode, testId);
+      $("resetBtn")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      $("resetBtn")?.focus();
     });
     document.body.appendChild(btn);
   }
@@ -493,13 +484,14 @@ function ensureAdminFab(mode, testId) {
 function updateAdminFabState(mode, testId) {
   const btn = document.getElementById("eduAdminFab");
   if (!btn) return;
-  const active = isAdminUnlocked(mode, testId);
+  const active = !!isAdminUser;
   btn.dataset.active = active ? "true" : "false";
-  btn.textContent = active ? "Admin on" : "Admin";
+  btn.textContent = active ? "Admin" : "";
 }
 
 
 function setButtons(mode, testId) {
+
   const primary = $("primaryBtn");
   const secondary = $("secondaryBtn");
   const reset = $("resetBtn");
@@ -524,8 +516,8 @@ function setButtons(mode, testId) {
 
   if (admin) {
     reset.onclick = () => {
-      const typed = prompt('Type RESET to clear this module attempt (local only):');
-      if (typed !== "RESET") return;
+      const ok = confirm('Clear this module attempt on this device?');
+      if (!ok) return;
       clearAttempt(mode, testId);
       location.reload();
     };
@@ -619,9 +611,6 @@ async function main() {
     localStorage.setItem(bridgeKey(mode, test, "last"), overrideParts[overrideParts.length - 1] || "");
   }
 
-  enableAdminUnlockHotkey(mode, test);
-  ensureAdminFab(mode, test);
-
   setHeader(mode, test);
   renderParts(mode, test);
   setWarning(mode, test);
@@ -638,6 +627,12 @@ async function main() {
       location.href = "/index.html";
       return;
     }
+
+    currentUser = user;
+    isAdminUser = await checkAdmin(user.uid);
+    ensureAdminFab(mode, test);
+    setButtons(mode, test);
+    setHint(mode, test);
 
     if (allDone(mode, test)) {
       const alreadyPushed = localStorage.getItem(bridgeKey(mode, test, "pushed")) === "true";

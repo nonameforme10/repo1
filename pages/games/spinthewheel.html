@@ -5,7 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Random Toolkit</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link
+  rel="preload"
+  as="style"
+  href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+  onload="this.onload=null;this.rel='stylesheet'"
+>
+<noscript>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+</noscript>
 <style>
 /* ── RESET ── */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -389,7 +398,6 @@ html,body{min-height:100%;background:var(--bg);color:var(--text);font-family:'In
 }
 @media(max-width:480px){.modal{padding:28px 22px}}
 </style>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -836,6 +844,25 @@ function rndColor(){return PALETTE[Math.floor(Math.random()*PALETTE.length)]}
 function jiggle(el){el.style.animation='none';el.offsetHeight;el.style.animation='shake 0.35s ease';setTimeout(()=>el.style.animation='',350)}
 function save(key,val){try{localStorage.setItem(key,JSON.stringify(val));}catch(e){}}
 function load(key,def){try{const v=localStorage.getItem(key);return v?JSON.parse(v):def;}catch(e){return def;}}
+const XLSX_SRC = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+let xlsxLoaderPromise = null;
+function ensureXlsxLoaded(onStatus){
+  if(typeof XLSX!=='undefined') return Promise.resolve(XLSX);
+  if(xlsxLoaderPromise) return xlsxLoaderPromise;
+  if(typeof onStatus==='function') onStatus('Loading Excel support...');
+  xlsxLoaderPromise = new Promise((resolve,reject)=>{
+    const script=document.createElement('script');
+    script.src=XLSX_SRC;
+    script.defer=true;
+    script.onload=()=>resolve(XLSX);
+    script.onerror=()=>{
+      xlsxLoaderPromise=null;
+      reject(new Error('Excel support failed to load.'));
+    };
+    document.head.appendChild(script);
+  });
+  return xlsxLoaderPromise;
+}
 
 /* ── CONFETTI ── */
 const cfc=document.getElementById('cf-canvas'),cfx=cfc.getContext('2d');
@@ -931,7 +958,7 @@ function wIngestItems(names){
   wSetFeedback('✓ Added '+toAdd.length+' item'+(toAdd.length!==1?'s':'')+(skipped?' ('+skipped+' skipped, max 20)':''));
   playClick();
 }
-function wReadFile(file){
+async function wReadFile(file){
   const ext=file.name.split('.').pop().toLowerCase();
   document.getElementById('w-drop-zone').classList.remove('drag-over');
   if(ext==='txt'||ext==='csv'){
@@ -949,7 +976,12 @@ function wReadFile(file){
     reader.onerror=()=>wSetFeedback('Error reading file.',false);
     reader.readAsText(file,'UTF-8');
   } else if(ext==='xlsx'||ext==='xls'){
-    if(typeof XLSX==='undefined'){wSetFeedback('Excel library not loaded yet.',false);return}
+    try{
+      await ensureXlsxLoaded(wSetFeedback);
+    }catch(err){
+      wSetFeedback(err.message||'Excel support failed to load.',false);
+      return;
+    }
     const reader=new FileReader();
     reader.onload=e=>{
       try{
@@ -1075,7 +1107,7 @@ function gParseText(text){
   if(lines.length===1) lines=text.split(/[,;|\t]+/);
   gIngestNames(lines);
 }
-function gReadFile(file){
+async function gReadFile(file){
   const ext=file.name.split('.').pop().toLowerCase();
   const zone=document.getElementById('g-drop-zone');
   zone.classList.remove('drag-over');
@@ -1101,7 +1133,12 @@ function gReadFile(file){
     reader.onerror=()=>gSetFeedback('Error reading file.',false);
     reader.readAsText(file,'UTF-8');
   } else if(ext==='xlsx'||ext==='xls'){
-    if(typeof XLSX==='undefined'){gSetFeedback('Excel library not loaded yet, please try again.',false);return}
+    try{
+      await ensureXlsxLoaded(gSetFeedback);
+    }catch(err){
+      gSetFeedback(err.message||'Excel support failed to load.',false);
+      return;
+    }
     const reader=new FileReader();
     reader.onload=e=>{
       try{

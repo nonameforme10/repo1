@@ -33,6 +33,28 @@ const authReady = new Promise((resolve) => {
   });
 });
 
+let currentUser = null;
+let isAdminUser = false;
+
+async function checkAdmin(uid) {
+  if (!uid) return false;
+  try {
+    const snap = await get(ref(db, `admins/${uid}`));
+    return snap.exists() && snap.val() === true;
+  } catch {
+    return false;
+  }
+}
+
+function syncAdminUi() {
+  const btn = document.getElementById("eduAdminFab");
+  if (!isAdminUser) {
+    btn?.remove();
+    return;
+  }
+  ensureAdminFab();
+}
+
 function _eduSegments() {
   let p = window.location.pathname || "/";
   p = p.replace(/\/+/g, "/"); 
@@ -351,43 +373,14 @@ function ensureDownloadPdfButton() {
 
 ensureDownloadPdfButton();
 
-const ADMIN_SALT_HEX = "3527507615c71580539d118c92288945";
-const ADMIN_HASH_HEX = "e2fa2be7284ad911ec467fcb3a864320a4e1fdae1a458ff4cdac9ed8fdcd2e8d";
-
-const toHex = bytes => [...bytes].map(b => b.toString(16).padStart(2, "0")).join("");
-
-function hexToBytes(hex) {
-  const clean = String(hex).replace(/[^0-9a-f]/gi, "");
-  if (clean.length % 2 !== 0) throw new Error("Invalid hex length");
-  const out = new Uint8Array(clean.length / 2);
-  for (let i = 0; i < out.length; i++) out[i] = parseInt(clean.substr(i * 2, 2), 16);
-  return out;
-}
-
-async function sha256Hex(bytes) {
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return toHex(new Uint8Array(digest));
-}
-
-async function verifyAdminPassword(pw) {
-  const saltBytes = hexToBytes(ADMIN_SALT_HEX);
-  const pwBytes = new TextEncoder().encode(String(pw));
-  const combined = new Uint8Array(saltBytes.length + pwBytes.length);
-  combined.set(saltBytes, 0);
-  combined.set(pwBytes, saltBytes.length);
-  const hashHex = await sha256Hex(combined);
-  return hashHex.toLowerCase() === String(ADMIN_HASH_HEX).toLowerCase();
-}
-
 async function adminResetFlow() {
-  const pw = prompt("Admin password:");
-  if (!pw) return;
-
-  const ok = await verifyAdminPassword(pw);
-  if (!ok) {
-    alert("❌ Wrong admin password.");
+  if (!isAdminUser) {
+    alert("Admin only.");
     return;
   }
+
+  const ok = confirm("Reset this test attempt on this device?");
+  if (!ok) return;
 
   Object.keys(localStorage)
     .filter(k => k.startsWith(STORAGE_PREFIX))
@@ -397,20 +390,9 @@ async function adminResetFlow() {
   location.reload();
 }
 
-window.makeAdminHash = async function(password) {
-  const salt = crypto.getRandomValues(new Uint8Array(16));
-  const pwBytes = new TextEncoder().encode(String(password));
-  const combined = new Uint8Array(salt.length + pwBytes.length);
-  combined.set(salt, 0);
-  combined.set(pwBytes, salt.length);
-  const digest = await crypto.subtle.digest("SHA-256", combined);
-  console.log("ADMIN_SALT_HEX =", toHex(salt));
-  console.log("ADMIN_HASH_HEX =", toHex(new Uint8Array(digest)));
-  return { ADMIN_SALT_HEX: toHex(salt), ADMIN_HASH_HEX: toHex(new Uint8Array(digest)) };
-};
-
 function ensureAdminFab() {
-  if (!document.body) return;
+
+  if (!document.body || !isAdminUser) return;
 
   if (!document.getElementById("edu-admin-fab-style")) {
     const style = document.createElement("style");
@@ -1082,11 +1064,6 @@ window.addEventListener("load", async () => {
   }
 });
 
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", ensureAdminFab, { once: true });
-} else {
-  ensureAdminFab();
-}
 
 const audio = document.getElementById("audio");
 window.playClipTimer = null;
@@ -1104,6 +1081,18 @@ window.playClip = function(startSec, endSec) {
   } catch (err) { console.error("playClip error", err); }
 };
 
+onAuthStateChanged(auth, async (user) => {
+  currentUser = user;
+  isAdminUser = user ? await checkAdmin(user.uid) : false;
+  syncAdminUi();
+});
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", syncAdminUi, { once: true });
+} else {
+  syncAdminUi();
+}
+
 document.addEventListener("contextmenu", e => e.preventDefault());
 let adminBuffer = "";
 let adminBufferTimer = null;
@@ -1114,7 +1103,7 @@ document.addEventListener("keydown", (e) => {
     (isCmdOrCtrl && e.shiftKey && ["I", "J"].includes(e.key.toUpperCase())) ||
     (isCmdOrCtrl && ["U", "S"].includes(e.key.toUpperCase()))
   ) { e.preventDefault(); }
-  const adminCombo = (isCmdOrCtrl && e.shiftKey);
+  const adminCombo = (isCmdOrCtrl && e.shiftKey && isAdminUser);
   if (adminCombo) {
     const k = String(e.key).toUpperCase();
     if (k.length === 1) e.preventDefault();

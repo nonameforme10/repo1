@@ -4,11 +4,22 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EduVenture</title>
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@0.577.0/dist/umd/lucide.min.js" defer></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        rel="preload"
+        as="style"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+        onload="this.onload=null;this.rel='stylesheet'"
+    >
+    <noscript>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    </noscript>
     <link rel="stylesheet" href="/pages/elements/style.css">
 <link rel="icon" href="/favicon.png">
-<script src="/assets/UI.js" defer></script>
+<script src="/elements/UI.js" defer></script>
+<script src="/pages/elements/script.js" defer></script>
 </head>
 <body>
     <div class="overlay" id="overlay"></div>
@@ -35,7 +46,15 @@
 
         <nav class="nav-main">
             <div class="logo-section" onclick="location.href='/pages/home/home page.html'">
-                <img style="cursor: pointer;" src="/assets/logo.png" alt="icon" class="icon-box">
+                <img
+                    style="cursor: pointer;"
+                    src="/assets/logo.png"
+                    alt="icon"
+                    class="icon-box"
+                    width="482"
+                    height="264"
+                    decoding="async"
+                >
                 <div style="cursor: pointer;" class="logo-text">
                     <h1><span style="color: #ffffff;">EDU</span><span style="color: #fbbf24;">VENTURE</span></h1>
                     <p>PREMIUM LEARNING</p>
@@ -67,7 +86,7 @@
         </div>
     </header>
 
-    <div class="arcade-section" data-parallax data-parallax-speed="0.7">
+    <div class="arcade-section">
         <div class="arcade-header">
             <h2><span>EDU</span>VENTURE <span style="color: #fbbf24;">Arcade</span></h2>
             <p>Master your skills through interactive gameplay.</p>
@@ -77,7 +96,13 @@
 
             <div class="arcade-card" onclick="openLocalGame('spinthewheel.html')">
                 <div class="arcade-thumb">
-                    <img src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExeDllaWpnYzhpYXVpcHAycDg0bjlrODBpZDR1emRoNmQ3cHRtbm4xZyZlcD12MV9naWZzX3NlYXJjaCZjdD1n/OcO1mg91Ct4CA/giphy.gif" alt="Spin Wheel">
+                    <img
+                        src="https://media.giphy.com/media/OcO1mg91Ct4CA/giphy_s.gif"
+                        alt="Spin Wheel"
+                        width="640"
+                        height="360"
+                        decoding="async"
+                    >
                     <div class="play-overlay"><i data-lucide="play-circle" size="64"></i></div>
                 </div>
                 <div class="arcade-info">
@@ -89,7 +114,13 @@
 
             <div class="arcade-card" onclick="openGame('https://www.gamestolearnenglish.com/animal-mystery/embed.html', 'animal-mystery')">
                 <div class="arcade-thumb">
-                    <img src="https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExcGd0eG84bzRocG9odnl1ODNvbGlncjlpb2s5ZGd4ZzhubXVwa2JodCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/VoPEFawTKA6yMiHWrt/giphy.gif" alt="Animal-mystery">
+                    <img
+                        src="https://media2.giphy.com/media/VoPEFawTKA6yMiHWrt/giphy_s.gif"
+                        alt="Animal-mystery"
+                        width="640"
+                        height="360"
+                        decoding="async"
+                    >
                     <div class="play-overlay"><i data-lucide="play-circle" size="64"></i></div>
                 </div>
                 <div class="arcade-info">
@@ -101,7 +132,13 @@
 
             <div class="arcade-card" onclick="openGame('https://www.gamestolearnenglish.com/hangman/embed.html', 'Hangman')">
                 <div class="arcade-thumb">
-                    <img src="https://avatars.mds.yandex.net/i?id=3267c07e874cf06e95787f956ac51e698058c5d7-5163701-images-thumbs&n=13" alt="Hangman">
+                    <img
+                        src="https://avatars.mds.yandex.net/i?id=3267c07e874cf06e95787f956ac51e698058c5d7-5163701-images-thumbs&n=13"
+                        alt="Hangman"
+                        width="640"
+                        height="360"
+                        decoding="async"
+                    >
                     <div class="play-overlay"><i data-lucide="play-circle" size="64"></i></div>
                 </div>
                 <div class="arcade-info">
@@ -143,7 +180,7 @@
     <div class="footer-container">
         <div class="footer-el">
             <div class="footer-logo">
-                <img src="/assets/logo.png" alt="icon" class="icon-box" style="width: 40px; height: 40px;">
+                <img src="/assets/logo.png" alt="icon" class="icon-box" style="width: 40px; height: 40px;" width="482" height="264" decoding="async">
                 <h2><span style="color: #ffffff;">EDU</span><span style="color: #fbbf24;">VENTURE</span></h2>
             </div>
             <p>Empowering students globally with premium resources, expert-led courses, and a supportive learning community since 2026.</p>
@@ -244,10 +281,6 @@
         });
     </script>
 
-    <script src="/elements/UI.js"></script>
-    <script src="/pages/elements/script.js"></script>
-<script src="/sw.js"></script>
 </body>
 </html>
-
 

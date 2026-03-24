@@ -153,19 +153,14 @@ function cacheRemove(key) {
   }
 }
 
-let lucideRefreshPending = false;
-function refreshIconsSoon() {
-  if (!window.lucide?.createIcons) return;
-  if (lucideRefreshPending) return;
-  lucideRefreshPending = true;
-  requestAnimationFrame(() => {
-    lucideRefreshPending = false;
-    try {
-      window.lucide.createIcons({ attrs: { "stroke-width": 2 } });
-    } catch {
-      
-    }
-  });
+function buildActionIcon(name) {
+  const svgAttrs = 'viewBox="0 0 24 24" width="12" height="12" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"';
+
+  if (name === "edit") {
+    return `<svg ${svgAttrs}><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>`;
+  }
+
+  return `<svg ${svgAttrs}><path d="M3 6h18"></path><path d="M8 6V4h8v2"></path><path d="M19 6l-1 14H6L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path></svg>`;
 }
 
 async function loadMyProfile(uid) {
@@ -341,13 +336,13 @@ function renderMessageNode(msg, msgKey) {
 
     const editBtn = document.createElement("button");
     editBtn.className = "msg-action-btn edit";
-    editBtn.innerHTML = '<i data-lucide="pencil" size="12"></i><span>Edit</span>';
+    editBtn.innerHTML = `${buildActionIcon("edit")}<span>Edit</span>`;
     editBtn.title = "Edit message";
     editBtn.type = "button";
 
     const deleteBtn = document.createElement("button");
     deleteBtn.className = "msg-action-btn delete";
-    deleteBtn.innerHTML = '<i data-lucide="trash-2" size="12"></i><span>Delete</span>';
+    deleteBtn.innerHTML = `${buildActionIcon("delete")}<span>Delete</span>`;
     deleteBtn.title = "Delete message";
     deleteBtn.type = "button";
 
@@ -449,7 +444,6 @@ async function startListening() {
   const list = $("chatList");
   if (!list) return;
 
-  
   const cached = loadChatCache();
   if (cached.length) {
     list.innerHTML = "";
@@ -459,14 +453,11 @@ async function startListening() {
     }
     list.appendChild(cachedFrag);
     list.scrollTop = list.scrollHeight;
-    refreshIconsSoon();
-    setStatus(false, "Syncing…");
+    setStatus(false, "Syncing...");
   } else {
-    setStatus(false, "Loading…");
+    setStatus(false, "Loading...");
   }
 
-  
-  
   const baseQ = query(
     ref(rtdb, MESSAGES_PATH),
     orderByChild("createdAtMs"),
@@ -489,16 +480,13 @@ async function startListening() {
       if (typeof msg.createdAtMs === "number") lastCreatedAt = msg.createdAtMs;
     });
 
-    
     list.innerHTML = "";
     list.appendChild(frag);
     list.scrollTop = list.scrollHeight;
-    refreshIconsSoon();
     saveChatCache(itemsForCache);
 
     setStatus(true, "Live");
 
-    
     const liveQ = typeof lastCreatedAt === "number"
         ? query(ref(rtdb, MESSAGES_PATH), orderByChild("createdAtMs"), startAfter(lastCreatedAt))
         : query(ref(rtdb, MESSAGES_PATH), orderByChild("createdAtMs"));
@@ -508,23 +496,20 @@ async function startListening() {
       const v = child.val() || {};
       const msg = normalizeMessage(v);
       list.appendChild(renderMessageNode(msg, child.key));
-      refreshIconsSoon();
       cacheUpsert(child.key, msg);
       scrollToBottomIfNearEnd(list);
     });
 
-    
     detachChanged = onChildChanged(ref(rtdb, MESSAGES_PATH), (child) => {
       const v = child.val() || {};
       const msg = normalizeMessage(v);
       updateMessageNode(child.key, msg);
     });
 
-    
     detachRemoved = onChildRemoved(ref(rtdb, MESSAGES_PATH), (child) => {
       removeMessageNode(child.key);
     });
-    
+
     listenToTyping();
 
   } catch (err) {
@@ -644,28 +629,26 @@ async function boot() {
   if (booted) return;
   booted = true;
   bindUI();
-  setStatus(false, "Connecting…");
+  setStatus(false, "Connecting...");
   await setPersistence(auth, browserLocalPersistence);
 
   onAuthStateChanged(auth, async (user) => {
     if (!user) {
-      {
-  const ret = location.href;
-  try { sessionStorage.setItem("edu_return_url", ret); } catch (e) {}
-  try { localStorage.setItem("edu_return_url", ret); } catch (e) {}
-  location.replace(`/pages/auth/reg.html?return=${encodeURIComponent(ret)}`);
-  return;
-}
-}
+      const ret = location.href;
+      try { sessionStorage.setItem("edu_return_url", ret); } catch (e) {}
+      try { localStorage.setItem("edu_return_url", ret); } catch (e) {}
+      location.replace(`/pages/auth/reg.html?return=${encodeURIComponent(ret)}`);
+      return;
+    }
     currentUser = user;
     try { myProfile = await loadMyProfile(user.uid); } catch (e) { myProfile = {}; }
-    
+
     const badge = $("chatUserBadge");
     if (badge) {
       const n = myProfile?.name || user.displayName || "Student";
       const g = myProfile?.group_name || deriveGroupFromEmail(user.email);
       badge.style.display = "";
-      badge.textContent = `${n} • ${g}`;
+      badge.textContent = `${n} - ${g}`;
     }
     await startListening();
   });
