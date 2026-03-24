@@ -5,6 +5,8 @@ import {
   globalChatTypingCollection,
   onlineCommentsCollection,
   onlineModulesCollection,
+  weeklyChallengesClubDocRef,
+  weeklyChallengesItemsCollection,
 } from "/elements/firestore-data.js";
 import {
   listeningSectionDocRef,
@@ -349,6 +351,58 @@ async function migrateOnline(writer) {
   return { skipped: false, moduleCount, commentCount, skippedExisting };
 }
 
+async function migrateWeeklyChallenges(writer) {
+  const clubId = DEFAULT_CLUB_ID;
+  const result = await getRtdbValueSafe(`weeklyChallenges/${clubId}/items`);
+
+  if (result.denied) {
+    log(`Skipped weekly challenges: RTDB read denied for weeklyChallenges/${clubId}/items.`);
+    return { skipped: true, reason: "permission-denied" };
+  }
+  if (result.error) throw result.error;
+
+  const items = sanitizeObject(result.value || {});
+  const entries = Object.entries(items).filter(
+    ([challengeId, payload]) => challengeId && payload && typeof payload === "object"
+  );
+
+  if (!entries.length) {
+    log(`No RTDB weekly challenges found for ${clubId}.`);
+    return { skipped: false, count: 0, skippedExisting: 0 };
+  }
+
+  const clubQueued = await writer.queueSetIfMissing(weeklyChallengesClubDocRef(clubId), {
+    clubId,
+    updatedAtMs: Date.now(),
+    migratedFrom: "rtdb",
+  }, { merge: true });
+
+  let count = 0;
+  let skippedExisting = 0;
+
+  for (const [challengeId, payload] of entries) {
+    const queued = await writer.queueSetIfMissing(
+      doc(weeklyChallengesItemsCollection(clubId), challengeId),
+      {
+        ...payload,
+        migratedFrom: "rtdb",
+      },
+      { merge: true }
+    );
+
+    if (queued) count += 1;
+    else skippedExisting += 1;
+  }
+
+  log(
+    `Queued ${count} weekly challenge document${count === 1 ? "" : "s"} from ${clubId}` +
+    `${clubQueued ? "" : " (club doc already existed)"}` +
+    `${skippedExisting ? `, skipped ${skippedExisting} existing docs.` : "."}`
+  );
+
+  return { skipped: false, count, skippedExisting };
+}
+
 async function migrateReadings(writer) {
   const result = await getRtdbValueSafe("readings");
   if (result.denied) {
@@ -626,6 +680,7 @@ async function runMigration() {
     await writer.flush();
     await migrateGlobalChat(writer);
     const onlineResult = await migrateOnline(writer);
+    const weeklyChallengesResult = await migrateWeeklyChallenges(writer);
     const phonesResult = await migratePhones(writer);
     const readingsResult = await migrateReadings(writer);
     const listeningResult = await migrateListening(writer);
@@ -635,6 +690,7 @@ async function runMigration() {
     const skipped = [];
     if (phonesResult?.skipped) skipped.push("phones");
     if (onlineResult?.skipped) skipped.push("online");
+    if (weeklyChallengesResult?.skipped) skipped.push("weekly_challenges");
     if (readingsResult?.skipped) skipped.push("readings");
     if (listeningResult?.skipped) skipped.push("listening");
     if (vocabulariesResult?.skipped) skipped.push(...(vocabulariesResult.skippedBranches || []));
@@ -643,7 +699,7 @@ async function runMigration() {
       setStatus(`Migration completed with skipped branches: ${skipped.join(", ")}. Check the log before deleting old RTDB data.`, "success");
       log(`Migration finished with skipped branches: ${skipped.join(", ")}.`);
     } else {
-      setStatus("Migration completed. Verify Firestore for chat, online, phones, readings, listening, and vocabularies, then you can remove the old RTDB branches.", "success");
+      setStatus("Migration completed. Verify Firestore for chat, online, weekly challenges, phones, readings, listening, and vocabularies, then you can remove the old RTDB branches.", "success");
       log("Migration finished successfully.");
     }
   } catch (error) {

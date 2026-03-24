@@ -1,5 +1,8 @@
 import { auth, rtdb } from "/elements/firebase.js";
-import { onlineModulesCollection } from "/elements/firestore-data.js";
+import {
+  onlineModulesCollection,
+  weeklyChallengesItemsCollection,
+} from "/elements/firestore-data.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
 import { getDocs } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
 import { ref, get, update } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
@@ -84,9 +87,9 @@ function modulesRef() {
   return onlineModulesCollection(clubId, teacherId);
 }
 
-function challengesRef() {
+function challengesCollectionRef() {
   const clubId = document.body?.dataset?.club || DEFAULT_CLUB_ID;
-  return ref(rtdb, `weeklyChallenges/${clubId}/items`);
+  return weeklyChallengesItemsCollection(clubId);
 }
 
 function getPermissionState() {
@@ -157,6 +160,11 @@ function mapToArray(mapObj) {
 
 async function loadModulesContent() {
   const snap = await getDocs(modulesRef());
+  return snap.docs.map((entry) => ({ id: entry.id, ...(entry.data() || {}) }));
+}
+
+async function loadChallengesContent() {
+  const snap = await getDocs(challengesCollectionRef());
   return snap.docs.map((entry) => ({ id: entry.id, ...(entry.data() || {}) }));
 }
 
@@ -433,7 +441,7 @@ async function runNotificationChecksNow(options = {}) {
     requestIndex.modules = requests.length;
     requests.push(loadModulesContent());
     requestIndex.challenges = requests.length;
-    requests.push(get(challengesRef()));
+    requests.push(loadChallengesContent());
   }
 
   const responses = requests.length ? await Promise.all(requests) : [];
@@ -479,7 +487,7 @@ async function runNotificationChecksNow(options = {}) {
   if (needsContent) {
     const contentItems = extractContentItems(
       responses[requestIndex.modules] || [],
-      responses[requestIndex.challenges]?.val?.() || {}
+      responses[requestIndex.challenges] || []
     );
     const latestContentAtMs = Math.max(0, Number(contentItems[0]?.createdAtMs || 0));
 

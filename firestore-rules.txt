@@ -75,6 +75,17 @@ service cloud.firestore {
       }
     }
 
+    match /weekly_challenges/{clubId} {
+      allow read: if true;
+      allow create, update: if isAdmin();
+      allow delete: if false;
+
+      match /items/{challengeId} {
+        allow read: if true;
+        allow create, update, delete: if isAdmin();
+      }
+    }
+
     match /readings/{testId} {
       allow read: if signedIn();
       allow create, update: if isAdmin();

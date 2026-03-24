@@ -1,7 +1,18 @@
 import { auth, db } from "/elements/firebase.js";
 import { checkAdminAccess } from "/elements/admin.js";
+import {
+  weeklyChallengeItemRef,
+  weeklyChallengesItemsCollection,
+} from "/elements/firestore-data.js";
 import { awardChallengeLeaderboard } from "/pages/elements/leaderboard.sync.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
+import {
+  addDoc,
+  deleteDoc,
+  onSnapshot,
+  orderBy,
+  query,
+} from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
 import {
   ref,
   get,
@@ -196,7 +207,8 @@ function showToast(message, type = "") {
    FIREBASE CONFIG
 ───────────────────────────────────────────── */
 const CLUB_ID        = document.body?.dataset?.club || "english";
-const CHALLENGES_PATH = `weeklyChallenges/${CLUB_ID}/items`;
+const LEGACY_CHALLENGES_PATH = `weeklyChallenges/${CLUB_ID}/items`;
+const CHALLENGES_COLLECTION = weeklyChallengesItemsCollection(CLUB_ID);
 const COMMENTS_PATH   = (cid) => `weeklyChallenges/${CLUB_ID}/comments/${cid}`;
 const PROOFS_PATH     = (cid) => `weeklyChallenges/${CLUB_ID}/proofs/${cid}`;
 const STUDENT_CHALLENGE_PROGRESS_PATH = (uid, cid) => `students/${uid}/progress/challenges/${cid}`;
@@ -376,10 +388,14 @@ async function grantChallengeRewardsToStudentStats(uid, xpGain, badgeGain) {
 ───────────────────────────────────────────── */
 let currentUser          = null;
 let isAdmin              = false;
+let firestoreChallenges  = [];
+let legacyChallenges     = [];
 let challenges           = [];
 let selectedChallengeId  = null;
 let currentComments      = [];
 let currentProofs        = [];
+let unsubscribeChallenges = null;
+let unsubscribeLegacyChallenges = null;
 let unsubscribeComments  = null;
 let unsubscribeProofs    = null;
 let proofFormDirty       = false;
@@ -1203,42 +1219,77 @@ function subscribeToProofs(challengeId) {
   );
 }
 
-function startRealtimeChallenges() {
-  onValue(
-    ref(db, CHALLENGES_PATH),
-    (snap) => {
-      const val = snap.val() || {};
-      challenges = Object.keys(val)
-        .map((id) => ({ id, ...val[id] }))
-        .sort(compareChallenges);
+function syncChallengeBoard(loadFailed = false) {
+  const merged = new Map();
 
-      updateHeroStats();
-      renderChallengeList();
+  legacyChallenges.forEach((challenge) => {
+    if (!challenge?.id) return;
+    merged.set(challenge.id, challenge);
+  });
 
-      const stillExists = challenges.some((c) => c.id === selectedChallengeId);
-      if (!stillExists) {
-        selectedChallengeId = challenges[0]?.id || null;
-        currentComments = [];
-        currentProofs   = [];
-        if (typeof unsubscribeComments === "function") unsubscribeComments();
-        if (typeof unsubscribeProofs   === "function") unsubscribeProofs();
-        unsubscribeComments = null;
-        unsubscribeProofs   = null;
-        if (selectedChallengeId) {
-          selectChallenge(selectedChallengeId);
-        } else {
-          renderSelectedChallenge();
-        }
-        return;
-      }
+  firestoreChallenges.forEach((challenge) => {
+    if (!challenge?.id) return;
+    merged.set(challenge.id, challenge);
+  });
+
+  challenges = Array.from(merged.values()).sort(compareChallenges);
+
+  updateHeroStats();
+  renderChallengeList();
+
+  const stillExists = challenges.some((c) => c.id === selectedChallengeId);
+  if (!stillExists) {
+    selectedChallengeId = challenges[0]?.id || null;
+    currentComments = [];
+    currentProofs   = [];
+    if (typeof unsubscribeComments === "function") unsubscribeComments();
+    if (typeof unsubscribeProofs   === "function") unsubscribeProofs();
+    unsubscribeComments = null;
+    unsubscribeProofs   = null;
+    if (selectedChallengeId) {
+      selectChallenge(selectedChallengeId);
+    } else {
       renderSelectedChallenge();
+    }
+  } else {
+    renderSelectedChallenge();
+  }
+
+  if (loadFailed && !challenges.length && challengeListStateEl) {
+    challengeListStateEl.textContent = "Challenge board could not be loaded.";
+  }
+}
+
+function startRealtimeChallenges() {
+  if (typeof unsubscribeChallenges === "function") unsubscribeChallenges();
+  if (typeof unsubscribeLegacyChallenges === "function") unsubscribeLegacyChallenges();
+
+  unsubscribeChallenges = onSnapshot(
+    query(CHALLENGES_COLLECTION, orderBy("createdAtMs", "desc")),
+    (snap) => {
+      firestoreChallenges = snap.docs
+        .map((entry) => ({ id: entry.id, ...(entry.data() || {}) }))
+        .sort(compareChallenges);
+      syncChallengeBoard();
     },
     () => {
-      challenges = [];
-      updateHeroStats();
-      renderChallengeList();
-      renderSelectedChallenge();
-      if (challengeListStateEl) challengeListStateEl.textContent = "Challenge board could not be loaded.";
+      firestoreChallenges = [];
+      syncChallengeBoard(true);
+    }
+  );
+
+  unsubscribeLegacyChallenges = onValue(
+    ref(db, LEGACY_CHALLENGES_PATH),
+    (snap) => {
+      const val = snap.val() || {};
+      legacyChallenges = Object.keys(val)
+        .map((id) => ({ id, ...val[id] }))
+        .sort(compareChallenges);
+      syncChallengeBoard();
+    },
+    () => {
+      legacyChallenges = [];
+      syncChallengeBoard(true);
     }
   );
 }
@@ -1292,17 +1343,16 @@ async function publishChallenge() {
   });
 
   challengeSaveBtn.disabled = true;
-  challengeSaveBtn.textContent = "Publishing…";
-  showModalStatus("Publishing challenge…", "");
+  challengeSaveBtn.textContent = "Publishing...";
+  showModalStatus("Publishing challenge...", "");
 
   try {
-    const newRef = push(ref(db, CHALLENGES_PATH));
-    await set(newRef, payload);
+    const newRef = await addDoc(CHALLENGES_COLLECTION, payload);
     showModalStatus("Challenge published.", "success");
     proofFormDirty = false;
     clearChallengeModal();
     closeChallengeModal();
-    selectedChallengeId = newRef.key;
+    selectedChallengeId = newRef.id;
     showToast("Challenge published successfully! 🎉", "success");
   } catch (error) {
     showModalStatus(error?.message || "Failed to publish challenge.", "error");
@@ -1326,7 +1376,8 @@ async function deleteChallenge() {
   try {
     const id = selectedChallengeId;
     await Promise.all([
-      remove(ref(db, `${CHALLENGES_PATH}/${id}`)),
+      deleteDoc(weeklyChallengeItemRef(CLUB_ID, id)),
+      remove(ref(db, `${LEGACY_CHALLENGES_PATH}/${id}`)),
       remove(ref(db, COMMENTS_PATH(id))),
       remove(ref(db, PROOFS_PATH(id)))
     ]);

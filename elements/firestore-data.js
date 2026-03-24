@@ -143,6 +143,18 @@ function onlineCommentRef(
   return doc(onlineCommentsCollection(clubId, teacherId, moduleId), cleanId(commentId));
 }
 
+function weeklyChallengesClubDocRef(clubId = DEFAULT_CLUB_ID) {
+  return doc(firestore, "weekly_challenges", cleanId(clubId, DEFAULT_CLUB_ID));
+}
+
+function weeklyChallengesItemsCollection(clubId = DEFAULT_CLUB_ID) {
+  return collection(weeklyChallengesClubDocRef(clubId), "items");
+}
+
+function weeklyChallengeItemRef(clubId = DEFAULT_CLUB_ID, challengeId) {
+  return doc(weeklyChallengesItemsCollection(clubId), cleanId(challengeId));
+}
+
 async function ensureOnlineTeacherTree(clubId = DEFAULT_CLUB_ID, teacherId = DEFAULT_TEACHER_ID) {
   const club = cleanId(clubId, DEFAULT_CLUB_ID);
   const teacher = cleanId(teacherId, DEFAULT_TEACHER_ID);
@@ -183,4 +195,7 @@ export {
   onlineModuleRef,
   onlineModulesCollection,
   releasePhoneIfOwned,
+  weeklyChallengeItemRef,
+  weeklyChallengesClubDocRef,
+  weeklyChallengesItemsCollection,
 };
