@@ -17,6 +17,8 @@ import {
 const runBtn = document.getElementById("runMigrationBtn");
 const statusBox = document.getElementById("statusBox");
 const logBox = document.getElementById("logBox");
+const DEFAULT_CLUB_ID = "english";
+const DEFAULT_TEACHER_ID = "Abdurahim";
 
 let currentUser = null;
 let running = false;
@@ -84,8 +86,28 @@ async function getRtdbValue(path) {
   return snap.exists() ? snap.val() : null;
 }
 
+async function getRtdbValueSafe(path) {
+  try {
+    return { value: await getRtdbValue(path), denied: false, error: null };
+  } catch (error) {
+    const message = String(error?.message || "");
+    const denied = /permission denied/i.test(message);
+    return { value: null, denied, error };
+  }
+}
+
 async function migratePhones(writer) {
-  const phones = sanitizeObject((await getRtdbValue("phones")) || {});
+  const result = await getRtdbValueSafe("phones");
+  if (result.denied) {
+    log("Skipped phones: RTDB rules block listing /phones. Chat and online can still migrate.");
+    log("To migrate phones too, temporarily allow admin read on /phones in RTDB rules, then run this page again.");
+    return { skipped: true, reason: "permission-denied" };
+  }
+  if (result.error) {
+    throw result.error;
+  }
+
+  const phones = sanitizeObject(result.value || {});
   let count = 0;
 
   for (const [phoneKey, uid] of Object.entries(phones)) {
@@ -102,6 +124,7 @@ async function migratePhones(writer) {
   }
 
   log(`Queued ${count} phone index documents.`);
+  return { skipped: false, count };
 }
 
 async function migrateGlobalChat(writer) {
@@ -145,68 +168,90 @@ async function migrateGlobalChat(writer) {
 }
 
 async function migrateOnline(writer) {
-  const onlineRoot = sanitizeObject((await getRtdbValue("online")) || {});
+  const clubId = DEFAULT_CLUB_ID;
+  const teacherId = DEFAULT_TEACHER_ID;
+  const modulesResult = await getRtdbValueSafe(`online/${clubId}/${teacherId}/modules`);
+  const commentsResult = await getRtdbValueSafe(`online/${clubId}/${teacherId}/comments`);
+
+  if (modulesResult.error && !modulesResult.denied) throw modulesResult.error;
+  if (commentsResult.error && !commentsResult.denied) throw commentsResult.error;
+
+  if (modulesResult.denied) {
+    log(`Skipped online modules: RTDB read denied for online/${clubId}/${teacherId}/modules.`);
+    return { skipped: true, reason: "permission-denied" };
+  }
+
+  await writer.queueSet(doc(firestore, "online", clubId), {
+    clubId,
+    updatedAtMs: Date.now(),
+    migratedFrom: "rtdb",
+  }, { merge: true });
+
+  await writer.queueSet(doc(collection(doc(firestore, "online", clubId), "teachers"), teacherId), {
+    clubId,
+    teacherId,
+    updatedAtMs: Date.now(),
+    migratedFrom: "rtdb",
+  }, { merge: true });
+
   let moduleCount = 0;
   let commentCount = 0;
+  const modules = sanitizeObject(modulesResult.value || {});
+  const commentsByModule = sanitizeObject(commentsResult.value || {});
 
-  for (const [clubId, clubValue] of Object.entries(onlineRoot)) {
-    if (!clubId || !clubValue || typeof clubValue !== "object") continue;
-
-    await writer.queueSet(doc(firestore, "online", clubId), {
-      clubId,
-      updatedAtMs: Date.now(),
+  for (const [moduleId, payload] of Object.entries(modules)) {
+    if (!moduleId || !payload || typeof payload !== "object") continue;
+    await writer.queueSet(doc(onlineModulesCollection(clubId, teacherId), moduleId), {
+      ...payload,
       migratedFrom: "rtdb",
-    }, { merge: true });
+    });
+    moduleCount += 1;
+  }
 
-    for (const [teacherId, teacherValue] of Object.entries(clubValue)) {
-      if (!teacherId || !teacherValue || typeof teacherValue !== "object") continue;
-
-      await writer.queueSet(doc(collection(doc(firestore, "online", clubId), "teachers"), teacherId), {
-        clubId,
-        teacherId,
-        updatedAtMs: Date.now(),
+  for (const [moduleId, comments] of Object.entries(commentsByModule)) {
+    if (!moduleId || !comments || typeof comments !== "object") continue;
+    for (const [commentId, payload] of Object.entries(comments)) {
+      if (!commentId || !payload || typeof payload !== "object") continue;
+      await writer.queueSet(doc(onlineCommentsCollection(clubId, teacherId, moduleId), commentId), {
+        ...payload,
         migratedFrom: "rtdb",
-      }, { merge: true });
-
-      const modules = sanitizeObject(teacherValue.modules || {});
-      for (const [moduleId, payload] of Object.entries(modules)) {
-        if (!moduleId || !payload || typeof payload !== "object") continue;
-        await writer.queueSet(doc(onlineModulesCollection(clubId, teacherId), moduleId), {
-          ...payload,
-          migratedFrom: "rtdb",
-        });
-        moduleCount += 1;
-      }
-
-      const commentsByModule = sanitizeObject(teacherValue.comments || {});
-      for (const [moduleId, comments] of Object.entries(commentsByModule)) {
-        if (!moduleId || !comments || typeof comments !== "object") continue;
-        for (const [commentId, payload] of Object.entries(comments)) {
-          if (!commentId || !payload || typeof payload !== "object") continue;
-          await writer.queueSet(doc(onlineCommentsCollection(clubId, teacherId, moduleId), commentId), {
-            ...payload,
-            migratedFrom: "rtdb",
-          });
-          commentCount += 1;
-        }
-      }
+      });
+      commentCount += 1;
     }
   }
 
-  log(`Queued ${moduleCount} online modules and ${commentCount} online comments.`);
+  log(`Queued ${moduleCount} online modules and ${commentCount} online comments from ${clubId}/${teacherId}.`);
+  return { skipped: false, moduleCount, commentCount };
 }
 
-async function seedCurrentAdmin(writer) {
-  if (!currentUser?.uid) return;
+async function seedFirestoreAdmins(writer) {
+  const result = await getRtdbValueSafe("admins");
+  if (result.error && !result.denied) throw result.error;
 
-  await writer.queueSet(doc(firestore, "admins", currentUser.uid), {
-    active: true,
-    email: String(currentUser.email || ""),
-    syncedFrom: "rtdb",
-    syncedAtMs: Date.now(),
-  }, { merge: true });
+  const admins = sanitizeObject(result.value || {});
+  let count = 0;
 
-  log(`Queued Firestore admin doc for ${currentUser.uid}.`);
+  for (const [uid, active] of Object.entries(admins)) {
+    if (!uid || active !== true) continue;
+    await writer.queueSet(doc(firestore, "admins", uid), {
+      active: true,
+      syncedFrom: "rtdb",
+      syncedAtMs: Date.now(),
+    }, { merge: true });
+    count += 1;
+  }
+
+  if (!count && currentUser?.uid) {
+    await writer.queueSet(doc(firestore, "admins", currentUser.uid), {
+      active: true,
+      email: String(currentUser.email || ""),
+      syncedFrom: "rtdb",
+      syncedAtMs: Date.now(),
+    }, { merge: true });
+    count = 1;
+  }
+
+  log(`Queued ${count} Firestore admin document${count === 1 ? "" : "s"}.`);
 }
 
 async function runMigration() {
@@ -223,14 +268,23 @@ async function runMigration() {
     }
 
     const writer = createBatchWriter();
-    await seedCurrentAdmin(writer);
-    await migratePhones(writer);
+    await seedFirestoreAdmins(writer);
+    await writer.flush();
     await migrateGlobalChat(writer);
-    await migrateOnline(writer);
+    const onlineResult = await migrateOnline(writer);
+    const phonesResult = await migratePhones(writer);
     await writer.flush();
 
-    setStatus("Migration completed. Verify the Firestore collections, then you can remove the old RTDB branches.", "success");
-    log("Migration finished successfully.");
+    if (phonesResult?.skipped) {
+      setStatus("Chat and online migrated. Phones were skipped because RTDB rules block listing /phones.", "success");
+      log("Migration finished with phones skipped.");
+      if (onlineResult?.skipped) {
+        log("Online was also skipped. Check RTDB read rules for the online branch.");
+      }
+    } else {
+      setStatus("Migration completed. Verify the Firestore collections, then you can remove the old RTDB branches.", "success");
+      log("Migration finished successfully.");
+    }
   } catch (error) {
     console.error("Firestore migration failed:", error);
     setStatus(`Migration failed: ${error?.message || error}`, "error");
