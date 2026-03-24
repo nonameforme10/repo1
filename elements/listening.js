@@ -2,6 +2,7 @@
 import { db } from "/elements/firebase.js";
 import { ref, get, update, runTransaction } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
 import { auth } from "/elements/firebase.js";
+import { checkAdminAccess } from "/elements/admin.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
 
 const EDU_ACTIVE_UID_KEY = "eduventure_active_uid_v1";
@@ -37,13 +38,7 @@ let currentUser = null;
 let isAdminUser = false;
 
 async function checkAdmin(uid) {
-  if (!uid) return false;
-  try {
-    const snap = await get(ref(db, `admins/${uid}`));
-    return snap.exists() && snap.val() === true;
-  } catch {
-    return false;
-  }
+  return checkAdminAccess(uid);
 }
 
 function syncAdminUi() {
@@ -1083,7 +1078,7 @@ window.playClip = function(startSec, endSec) {
 
 onAuthStateChanged(auth, async (user) => {
   currentUser = user;
-  isAdminUser = user ? await checkAdmin(user.uid) : false;
+  isAdminUser = user ? await checkAdmin(user) : false;
   syncAdminUi();
 });
 

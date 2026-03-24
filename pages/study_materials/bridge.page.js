@@ -3,6 +3,7 @@
 
 
 import { auth, db, ref, get, runTransaction, update } from "/elements/firebase.js";
+import { checkAdminAccess } from "/elements/admin.js";
 import { recordTestLeaderboard } from "/pages/elements/leaderboard.sync.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
 
@@ -45,13 +46,7 @@ let currentUser = null;
 let isAdminUser = false;
 
 async function checkAdmin(uid) {
-  if (!uid) return false;
-  try {
-    const snap = await get(ref(db, `admins/${uid}`));
-    return snap.exists() && snap.val() === true;
-  } catch {
-    return false;
-  }
+  return checkAdminAccess(uid);
 }
 
 function bridgeKey(mode, testId, suffix) {
@@ -629,7 +624,7 @@ async function main() {
     }
 
     currentUser = user;
-    isAdminUser = await checkAdmin(user.uid);
+    isAdminUser = await checkAdmin(user);
     ensureAdminFab(mode, test);
     setButtons(mode, test);
     setHint(mode, test);

@@ -4,6 +4,7 @@
 // Requires: /elements/firebase.js to initialize Firebase app + export auth & db.
 
 import { auth, db } from "/elements/firebase.js";
+import { checkAdminAccess } from "/elements/admin.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
 import {
   ref,
@@ -1058,13 +1059,7 @@ function initCertificateScroller() {
    Boot
 ------------------------------ */
 async function checkAdmin(uid) {
-  try {
-    const s = await get(ref(db, `admins/${uid}`));
-    return s.exists() && s.val() === true;
-  } catch (e) {
-    // If your rules deny reading /admins, you won't be able to show the admin UI.
-    return false;
-  }
+  return checkAdminAccess(uid);
 }
 
 function bindCommentUI() {
@@ -1134,7 +1129,7 @@ onAuthStateChanged(auth, async (user) => {
 }
 }
 
-  isAdmin = await checkAdmin(currentUser.uid);
+  isAdmin = await checkAdmin(currentUser);
   setAuthHint();
   init();
 });

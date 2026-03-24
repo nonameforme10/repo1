@@ -579,6 +579,7 @@
 
     <script type="module">
       import { auth, db, ref, get } from "/elements/firebase.js";
+      import { checkAdminAccess } from "/elements/admin.js";
       import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
         import { setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
       import { set, update } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
@@ -602,13 +603,7 @@
       let _isAdmin = false;
 
       async function checkAdmin(uid) {
-        if (!uid) return false;
-        try {
-          const snap = await get(ref(db, `admins/${uid}`));
-          return snap.exists() && snap.val() === true;
-        } catch {
-          return false;
-        }
+        return checkAdminAccess(uid);
       }
 
 
@@ -1102,7 +1097,7 @@
   location.replace(`/pages/auth/reg.html?return=${encodeURIComponent(ret)}`);
   return;
 }
-        _isAdmin = await checkAdmin(user.uid);
+        _isAdmin = await checkAdmin(user);
         ensureAdminFab();
         renderListenings(user.uid).catch((e) => {
           console.error(e);
@@ -1188,4 +1183,3 @@
 <script src="/sw.js"></script>
 </body>
 </html>
-

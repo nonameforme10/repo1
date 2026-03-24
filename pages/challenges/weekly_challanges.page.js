@@ -1,4 +1,5 @@
 import { auth, db } from "/elements/firebase.js";
+import { checkAdminAccess } from "/elements/admin.js";
 import { awardChallengeLeaderboard } from "/pages/elements/leaderboard.sync.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
 import {
@@ -536,12 +537,7 @@ function closeAdminProofModal() {
    FIREBASE HELPERS
 ───────────────────────────────────────────── */
 async function checkAdmin(uid) {
-  try {
-    const snap = await get(ref(db, `admins/${uid}`));
-    return snap.exists() && snap.val() === true;
-  } catch {
-    return false;
-  }
+  return checkAdminAccess(uid);
 }
 
 async function loadMyProfile() {
@@ -1625,7 +1621,7 @@ function init() {
 
 onAuthStateChanged(auth, async (user) => {
   currentUser = user;
-  isAdmin     = currentUser ? await checkAdmin(currentUser.uid) : false;
+  isAdmin     = currentUser ? await checkAdmin(currentUser) : false;
   updateHeroStats();
   setInteractionHints();
   renderChallengeList();
