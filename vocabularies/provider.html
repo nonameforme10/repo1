@@ -28,8 +28,13 @@
 
   <script type="module">
     import { auth, db, ref, get, update, serverTimestamp } from "/elements/firebase.js";
+    import {
+      extractVocabularyWords,
+      vocabularyModuleDocRef,
+    } from "/elements/study-firestore.js";
     import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
-        import { setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
+    import { setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
+    import { getDoc } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
 
     const listEl = document.getElementById("words-list");
     const backBtn = document.getElementById("backBtn");
@@ -193,14 +198,13 @@ function showText(msg) {
 
       setupNav();
 
-      const path = `vocabularies/${type}/${name}`;
       showLoading();
 
-      const snap = await get(ref(db, path));
-      if (!snap.exists()) return showText(`Not found: ${path}`);
+      const snap = await getDoc(vocabularyModuleDocRef(type, name));
+      if (!snap.exists()) return showText(`Not found: ${type}/${name}`);
 
       document.title = `${name} | Vocabulary`;
-      const count = renderWords(snap.val());
+      const count = renderWords(extractVocabularyWords(snap.data() || {}));
       try { await touchProgress(uid, count); } catch (e) { console.warn('Progress write failed:', e); }
       try { await touchListeningAccess(uid); } catch (e) { console.warn('Listening access write failed:', e); }
     }
@@ -225,6 +229,5 @@ try {
 <script src="/sw.js"></script>
 </body>
 </html>
-
 
 

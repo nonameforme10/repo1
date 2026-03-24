@@ -6,8 +6,16 @@ import {
   onlineCommentsCollection,
   onlineModulesCollection,
 } from "/elements/firestore-data.js";
+import {
+  listeningSectionDocRef,
+  listeningTestDocRef,
+  readingPartDocRef,
+  readingTestDocRef,
+  vocabularyModuleDocRef,
+  vocabularyTypeDocRef,
+} from "/elements/study-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
-import { ref, get } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
+import { ref, get, set } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
 import {
   collection,
   doc,
@@ -94,6 +102,48 @@ async function getRtdbValueSafe(path) {
     const denied = /permission denied/i.test(message);
     return { value: null, denied, error };
   }
+}
+
+function safeKey(value) {
+  return String(value || "").replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 120);
+}
+
+function extractLegacyQuestions(payload) {
+  if (!payload || typeof payload !== "object") return {};
+  if (payload.questions && typeof payload.questions === "object") {
+    return sanitizeObject(payload.questions);
+  }
+  return sanitizeObject(payload);
+}
+
+function extractLegacyVocabularyWords(payload) {
+  if (!payload || typeof payload !== "object") return {};
+
+  const out = {};
+  Object.entries(payload).forEach(([key, value]) => {
+    if (key === "pendingRooms") return;
+    if (!value || typeof value !== "object") return;
+    if (!("eng" in value) && !("uzb" in value) && !("rus" in value) && !("transcription" in value)) return;
+    out[key] = sanitizeObject(value);
+  });
+  return out;
+}
+
+function extractLegacyPendingRooms(payload) {
+  const rooms = payload?.pendingRooms;
+  return rooms && typeof rooms === "object" ? sanitizeObject(rooms) : {};
+}
+
+function countVocabularyWords(wordsMap) {
+  return Object.values(wordsMap || {}).filter((value) => value && typeof value === "object").length;
+}
+
+function extractPasswordNode(passwords, moduleId) {
+  if (!passwords || typeof passwords !== "object") return null;
+  const byName = passwords[moduleId];
+  const byKey = passwords[safeKey(moduleId)];
+  const node = byName || byKey;
+  return node && typeof node === "object" ? sanitizeObject(node) : null;
 }
 
 async function migratePhones(writer) {
@@ -224,6 +274,206 @@ async function migrateOnline(writer) {
   return { skipped: false, moduleCount, commentCount };
 }
 
+async function migrateReadings(writer) {
+  const result = await getRtdbValueSafe("readings");
+  if (result.denied) {
+    log("Skipped readings: RTDB read denied for /readings.");
+    return { skipped: true, reason: "permission-denied" };
+  }
+  if (result.error) throw result.error;
+
+  const tests = sanitizeObject(result.value || {});
+  let testCount = 0;
+  let partCount = 0;
+
+  for (const [testId, parts] of Object.entries(tests)) {
+    if (!testId || !parts || typeof parts !== "object") continue;
+    await writer.queueSet(readingTestDocRef(testId), {
+      testId,
+      updatedAtMs: Date.now(),
+      migratedFrom: "rtdb",
+    }, { merge: true });
+    testCount += 1;
+
+    for (const [partId, payload] of Object.entries(parts)) {
+      if (!partId || !payload || typeof payload !== "object") continue;
+      const questions = extractLegacyQuestions(payload);
+      await writer.queueSet(readingPartDocRef(testId, partId), {
+        testId,
+        partId,
+        questions,
+        updatedAtMs: Date.now(),
+        migratedFrom: "rtdb",
+      }, { merge: true });
+      partCount += 1;
+    }
+  }
+
+  log(`Queued ${testCount} reading tests and ${partCount} reading parts.`);
+  return { skipped: false, testCount, partCount };
+}
+
+async function migrateListening(writer) {
+  const result = await getRtdbValueSafe("listening");
+  if (result.denied) {
+    log("Skipped listening: RTDB read denied for /listening.");
+    return { skipped: true, reason: "permission-denied" };
+  }
+  if (result.error) throw result.error;
+
+  const tests = sanitizeObject(result.value || {});
+  let testCount = 0;
+  let sectionCount = 0;
+
+  for (const [testId, sections] of Object.entries(tests)) {
+    if (!testId || !sections || typeof sections !== "object") continue;
+    await writer.queueSet(listeningTestDocRef(testId), {
+      testId,
+      updatedAtMs: Date.now(),
+      migratedFrom: "rtdb",
+    }, { merge: true });
+    testCount += 1;
+
+    for (const [sectionId, payload] of Object.entries(sections)) {
+      if (!sectionId || !payload || typeof payload !== "object") continue;
+      const questions = extractLegacyQuestions(payload);
+      await writer.queueSet(listeningSectionDocRef(testId, sectionId), {
+        testId,
+        sectionId,
+        questions,
+        updatedAtMs: Date.now(),
+        migratedFrom: "rtdb",
+      }, { merge: true });
+      sectionCount += 1;
+    }
+  }
+
+  log(`Queued ${testCount} listening tests and ${sectionCount} listening sections.`);
+  return { skipped: false, testCount, sectionCount };
+}
+
+async function migrateVocabularyType(writer, type, modules, passwords = {}) {
+  await writer.queueSet(vocabularyTypeDocRef(type), {
+    type,
+    updatedAtMs: Date.now(),
+    migratedFrom: "rtdb",
+  }, { merge: true });
+
+  let moduleCount = 0;
+  let wordCount = 0;
+
+  for (const [moduleId, payload] of Object.entries(modules || {})) {
+    if (!moduleId || !payload || typeof payload !== "object") continue;
+    const words = extractLegacyVocabularyWords(payload);
+    const password = type === "listeningwords" ? extractPasswordNode(passwords, moduleId) : null;
+    const count = countVocabularyWords(words);
+
+    await writer.queueSet(vocabularyModuleDocRef(type, moduleId), {
+      moduleId,
+      type,
+      words,
+      wordCount: count,
+      updatedAtMs: Date.now(),
+      migratedFrom: "rtdb",
+      ...(password ? { password } : {}),
+    }, { merge: true });
+
+    moduleCount += 1;
+    wordCount += count;
+  }
+
+  return { moduleCount, wordCount };
+}
+
+async function migrateVocabularyRooms(type, modules) {
+  let moduleCount = 0;
+  let roomCount = 0;
+
+  for (const [moduleId, payload] of Object.entries(modules || {})) {
+    if (!moduleId || !payload || typeof payload !== "object") continue;
+    const pendingRooms = extractLegacyPendingRooms(payload);
+    const entries = Object.entries(pendingRooms).filter(
+      ([roomId, roomPayload]) => roomId && roomPayload && typeof roomPayload === "object"
+    );
+    if (!entries.length) continue;
+
+    for (const [roomId, roomPayload] of entries) {
+      try {
+        await set(
+          ref(rtdb, `vocabularyRooms/${type}/${moduleId}/pendingRooms/${roomId}`),
+          sanitizeObject(roomPayload)
+        );
+      } catch (error) {
+        const message = String(error?.message || "");
+        if (/permission denied/i.test(message)) {
+          log(
+            `Skipped vocabularyRooms/${type}/${moduleId}: RTDB write denied. ` +
+            "Deploy the updated RTDB rules before rerunning if you want live rooms copied."
+          );
+          return { skipped: true, reason: "permission-denied", moduleCount, roomCount };
+        }
+        throw error;
+      }
+
+      roomCount += 1;
+    }
+
+    moduleCount += 1;
+  }
+
+  if (roomCount > 0) {
+    log(`Copied ${roomCount} pending vocabulary room${roomCount === 1 ? "" : "s"} into vocabularyRooms.`);
+  }
+
+  return { skipped: false, moduleCount, roomCount };
+}
+
+async function migrateVocabularies(writer) {
+  const unitwordsResult = await getRtdbValueSafe("vocabularies/unitwords");
+  const listeningwordsResult = await getRtdbValueSafe("vocabularies/listeningwords");
+  const passwordsResult = await getRtdbValueSafe("vocabularies/listeningwords_passwords");
+
+  if (unitwordsResult.error && !unitwordsResult.denied) throw unitwordsResult.error;
+  if (listeningwordsResult.error && !listeningwordsResult.denied) throw listeningwordsResult.error;
+  if (passwordsResult.error && !passwordsResult.denied) throw passwordsResult.error;
+
+  const skipped = [];
+  if (unitwordsResult.denied) skipped.push("unitwords");
+  if (listeningwordsResult.denied) skipped.push("listeningwords");
+  if (passwordsResult.denied) skipped.push("listeningwords_passwords");
+  if (skipped.length) {
+    log(`Skipped vocabularies branches: ${skipped.join(", ")}.`);
+  }
+
+  const unitwords = sanitizeObject(unitwordsResult.value || {});
+  const listeningwords = sanitizeObject(listeningwordsResult.value || {});
+  const passwords = sanitizeObject(passwordsResult.value || {});
+
+  const unitResult = await migrateVocabularyType(writer, "unitwords", unitwords);
+  const listeningResult = await migrateVocabularyType(writer, "listeningwords", listeningwords, passwords);
+  const unitRoomsResult = await migrateVocabularyRooms("unitwords", unitwords);
+  const listeningRoomsResult = await migrateVocabularyRooms("listeningwords", listeningwords);
+
+  log(
+    `Queued ${unitResult.moduleCount} unit vocabulary modules, ` +
+    `${listeningResult.moduleCount} listening vocabulary modules, and ` +
+    `${unitResult.wordCount + listeningResult.wordCount} vocabulary words.`
+  );
+
+  return {
+    skipped: skipped.length > 0 || unitRoomsResult.skipped || listeningRoomsResult.skipped,
+    skippedBranches: [
+      ...skipped,
+      ...(unitRoomsResult.skipped ? ["vocabularyRooms/unitwords"] : []),
+      ...(listeningRoomsResult.skipped ? ["vocabularyRooms/listeningwords"] : []),
+    ],
+    unitResult,
+    listeningResult,
+    unitRoomsResult,
+    listeningRoomsResult,
+  };
+}
+
 async function seedFirestoreAdmins(writer) {
   const result = await getRtdbValueSafe("admins");
   if (result.error && !result.denied) throw result.error;
@@ -273,16 +523,23 @@ async function runMigration() {
     await migrateGlobalChat(writer);
     const onlineResult = await migrateOnline(writer);
     const phonesResult = await migratePhones(writer);
+    const readingsResult = await migrateReadings(writer);
+    const listeningResult = await migrateListening(writer);
+    const vocabulariesResult = await migrateVocabularies(writer);
     await writer.flush();
 
-    if (phonesResult?.skipped) {
-      setStatus("Chat and online migrated. Phones were skipped because RTDB rules block listing /phones.", "success");
-      log("Migration finished with phones skipped.");
-      if (onlineResult?.skipped) {
-        log("Online was also skipped. Check RTDB read rules for the online branch.");
-      }
+    const skipped = [];
+    if (phonesResult?.skipped) skipped.push("phones");
+    if (onlineResult?.skipped) skipped.push("online");
+    if (readingsResult?.skipped) skipped.push("readings");
+    if (listeningResult?.skipped) skipped.push("listening");
+    if (vocabulariesResult?.skipped) skipped.push(...(vocabulariesResult.skippedBranches || []));
+
+    if (skipped.length) {
+      setStatus(`Migration completed with skipped branches: ${skipped.join(", ")}. Check the log before deleting old RTDB data.`, "success");
+      log(`Migration finished with skipped branches: ${skipped.join(", ")}.`);
     } else {
-      setStatus("Migration completed. Verify the Firestore collections, then you can remove the old RTDB branches.", "success");
+      setStatus("Migration completed. Verify Firestore for chat, online, phones, readings, listening, and vocabularies, then you can remove the old RTDB branches.", "success");
       log("Migration finished successfully.");
     }
   } catch (error) {

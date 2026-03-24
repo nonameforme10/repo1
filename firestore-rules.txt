@@ -11,7 +11,8 @@ service cloud.firestore {
 
     function isAdmin() {
       return signedIn() &&
-        exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.active == true;
     }
 
     match /admins/{uid} {
@@ -71,6 +72,39 @@ service cloud.firestore {
               (resource.data.uid == request.auth.uid || isAdmin());
           }
         }
+      }
+    }
+
+    match /readings/{testId} {
+      allow read: if signedIn();
+      allow create, update: if isAdmin();
+      allow delete: if false;
+
+      match /parts/{partId} {
+        allow read: if signedIn();
+        allow create, update, delete: if isAdmin();
+      }
+    }
+
+    match /listening/{testId} {
+      allow read: if signedIn();
+      allow create, update: if isAdmin();
+      allow delete: if false;
+
+      match /sections/{sectionId} {
+        allow read: if signedIn();
+        allow create, update, delete: if isAdmin();
+      }
+    }
+
+    match /vocabularies/{type} {
+      allow read: if signedIn();
+      allow create, update: if isAdmin();
+      allow delete: if false;
+
+      match /modules/{moduleId} {
+        allow read: if signedIn();
+        allow create, update, delete: if isAdmin();
       }
     }
 

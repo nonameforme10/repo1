@@ -5,7 +5,13 @@
 import { auth, db, ref, get, runTransaction, update } from "/elements/firebase.js";
 import { checkAdminAccess } from "/elements/admin.js";
 import { recordTestLeaderboard } from "/pages/elements/leaderboard.sync.js";
+import {
+  extractQuestionsMap,
+  listeningSectionDocRef,
+  readingPartDocRef,
+} from "/elements/study-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
+import { getDoc } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
 
 
 
@@ -13,12 +19,6 @@ import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.23.0/fi
 const DEFAULT_PARTS_BY_MODE = {
   reading: ["pass1", "pass2", "pass3"],
   listening: ["sec1", "sec2", "sec3", "sec4"],
-};
-
-
-const DB_ROOT_BY_MODE = {
-  reading: "readings",
-  listening: "listening",
 };
 
 
@@ -153,7 +153,6 @@ function normalizeAnswerKey(raw) {
 
 async function computeTotals(mode, testId) {
   const parts = getParts(mode, testId);
-  const dbRoot = DB_ROOT_BY_MODE[mode];
 
   
   const cachedTotalsRaw = localStorage.getItem(bridgeKey(mode, testId, "totalsJson"));
@@ -183,11 +182,16 @@ async function computeTotals(mode, testId) {
     } catch {}
 
     
-    const dbPath = `${dbRoot}/${testId}/${partId}/questions`;
-    const snap = await get(ref(db, dbPath));
-    if (!snap.exists()) return { partId, error: `Answer key missing at ${dbPath}` };
+    const snap = await getDoc(
+      mode === "reading"
+        ? readingPartDocRef(testId, partId)
+        : listeningSectionDocRef(testId, partId)
+    );
+    if (!snap.exists()) {
+      return { partId, error: `Answer key missing for ${mode}/${testId}/${partId}` };
+    }
 
-    const raw = snap.val();
+    const raw = extractQuestionsMap(snap.data() || {});
 
     
     try { sessionStorage.setItem(cacheKey, JSON.stringify(raw)); } catch {}

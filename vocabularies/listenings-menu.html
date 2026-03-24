@@ -580,13 +580,22 @@
     <script type="module">
       import { auth, db, ref, get } from "/elements/firebase.js";
       import { checkAdminAccess } from "/elements/admin.js";
+      import {
+        extractVocabularyPassword,
+        vocabularyModuleDocRef,
+        vocabularyModulesCollection,
+      } from "/elements/study-firestore.js";
       import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
-        import { setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
-      import { set, update } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
+      import { setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
+      import { update } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
+      import {
+        deleteField,
+        getDocs,
+        setDoc,
+        updateDoc,
+      } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
 
       const PROVIDER_PATH = "/vocabularies/provider.html";
-
-      const PASSWORDS_PATH = "vocabularies/listeningwords_passwords";
 
       const STUDENT_ACCESS_PATH = (uid) => `students/${uid}/vocabularies/listeningwords`;
 
@@ -599,6 +608,7 @@
       let _uid = null;
       let _names = [];
       let _pwMap = {}; 
+      let _moduleMap = {};
       let _access = {};
       let _isAdmin = false;
 
@@ -656,8 +666,14 @@
 
       async function loadPasswordMap() {
         try {
-          const snap = await get(ref(db, PASSWORDS_PATH));
-          _pwMap = snap.exists() ? (snap.val() || {}) : {};
+          const next = {};
+          Object.entries(_moduleMap || {}).forEach(([name, data]) => {
+            const password = extractVocabularyPassword(data);
+            if (!password) return;
+            next[name] = password;
+            next[safeKey(name)] = password;
+          });
+          _pwMap = next;
         } catch (e) {
           console.warn("Password map read failed:", e);
           _pwMap = {};
@@ -915,11 +931,13 @@
         setAdminStatus("info", "Saving...");
 
         try {
-          const target = ref(db, `${PASSWORDS_PATH}/${key}`);
-
           if (!pw) {
-            await set(target, null);
+            await updateDoc(vocabularyModuleDocRef("listeningwords", name), {
+              password: deleteField(),
+              updatedAtMs: Date.now(),
+            });
             delete _pwMap[key];
+            delete _pwMap[name];
             setAdminStatus("success", "Password removed.");
           } else {
             const { saltHex, hashHex } = await makeSaltedHash(pw);
@@ -930,8 +948,18 @@
               updatedAt: Date.now(),
               updatedBy: _uid,
             };
-            await set(target, payload);
+            await setDoc(
+              vocabularyModuleDocRef("listeningwords", name),
+              {
+                moduleId: name,
+                type: "listeningwords",
+                updatedAtMs: Date.now(),
+                password: payload,
+              },
+              { merge: true }
+            );
             _pwMap[key] = payload;
+            _pwMap[name] = payload;
             setAdminStatus("success", "Password saved (hashed).");
           }
 
@@ -985,11 +1013,13 @@
         _uid = uid;
         showMessage("Loading listenings...");
 
-        const snap = await get(ref(db, "vocabularies/listeningwords"));
-        if (!snap.exists()) return showMessage("No listenings found in vocabularies/listeningwords");
-
-        const obj = snap.val() || {};
-        _names = Object.keys(obj).sort((a, b) => a.localeCompare(b));
+        const snap = await getDocs(vocabularyModulesCollection("listeningwords"));
+        _moduleMap = {};
+        _names = snap.docs.map((entry) => entry.id).sort((a, b) => a.localeCompare(b));
+        snap.forEach((entry) => {
+          _moduleMap[entry.id] = entry.data() || {};
+        });
+        if (!_names.length) return showMessage("No listenings found in Firestore listeningwords modules");
 
         await loadPasswordMap();
 

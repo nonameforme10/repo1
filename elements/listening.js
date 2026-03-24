@@ -3,7 +3,16 @@ import { db } from "/elements/firebase.js";
 import { ref, get, update, runTransaction } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
 import { auth } from "/elements/firebase.js";
 import { checkAdminAccess } from "/elements/admin.js";
+import {
+  extractQuestionsMap,
+  listeningSectionDocRef,
+  listeningSectionsCollection,
+} from "/elements/study-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
+import {
+  getDoc,
+  getDocs,
+} from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
 
 const EDU_ACTIVE_UID_KEY = "eduventure_active_uid_v1";
 
@@ -72,7 +81,6 @@ const SEC_ID =
   (window.location.pathname.match(/\/(sec\d+)\b/i)?.[1]) ||
   "sec1";
 
-const DB_PATH = `listening/${TEST_ID}/${SEC_ID}/questions`;
 const STORAGE_PREFIX = `listening_${TEST_ID}_${SEC_ID}`;
 
 const ANSWER_CACHE_KEY = `${STORAGE_PREFIX}_answer_key_v1`;
@@ -98,10 +106,9 @@ async function loadAnswerKey() {
 
   await authReady;
   if (!auth.currentUser) return null;
-  const snap = await get(ref(db, DB_PATH));
+  const snap = await getDoc(listeningSectionDocRef(TEST_ID, SEC_ID));
   if (!snap.exists()) return null;
-  const raw = snap.val();
-  const val = normalizeAnswerKey(raw);
+  const val = extractQuestionsMap(snap.data() || {});
 
   try { sessionStorage.setItem(ANSWER_CACHE_KEY, JSON.stringify(val)); } catch {}
   return val;
@@ -176,11 +183,8 @@ async function _getPartsAuthoritative() {
   try {
     await authReady;
     if (auth.currentUser) {
-      const snap = await get(ref(db, `listening/${TEST_ID}`));
-      if (snap.exists()) {
-        const v = snap.val() || {};
-        dbParts = _normalizePartsList(Object.keys(v || {}));
-      }
+      const snap = await getDocs(listeningSectionsCollection(TEST_ID));
+      dbParts = _normalizePartsList(snap.docs.map((entry) => entry.id));
     }
   } catch {
     dbParts = [];

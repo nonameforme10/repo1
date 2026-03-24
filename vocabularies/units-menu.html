@@ -281,8 +281,10 @@
     
     <script type="module">
       import { auth, db, ref, get } from "/elements/firebase.js";
+      import { vocabularyModulesCollection } from "/elements/study-firestore.js";
       import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
-        import { setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
+      import { setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
+      import { getDocs } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
 
       const PROVIDER_PATH = "/vocabularies/provider.html";
       const header = document.querySelector(".glass-header h2");
@@ -313,11 +315,9 @@
       async function renderUnits(uid) {
         showMessage("Loading units...");
 
-        const unitsSnap = await get(ref(db, "vocabularies/unitwords"));
-        if (!unitsSnap.exists()) return showMessage("No units found in vocabularies/unitwords");
-
-        const unitWords = unitsSnap.val() || {};
-        const units = Object.keys(unitWords).sort(unitSort);
+        const unitsSnap = await getDocs(vocabularyModulesCollection("unitwords"));
+        const units = unitsSnap.docs.map((entry) => entry.id).sort(unitSort);
+        if (!units.length) return showMessage("No units found in Firestore unitwords modules");
         // Progress + Stats (progress is the new source of truth; stats is fallback)
         let progress = {};
         try {
@@ -454,6 +454,5 @@ renderUnits(user.uid).catch((e) => {
 <script src="/sw.js"></script>
 </body>
 </html>
-
 
 

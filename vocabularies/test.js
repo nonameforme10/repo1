@@ -152,17 +152,24 @@
   async function loadFirebase() {
     if (fb) return fb;
     const mod = await import("/elements/firebase.js");
+    const studyMod = await import("/elements/study-firestore.js");
     const authMod = await import("https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js");
     const dbMod = await import("https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js");
+    const fsMod = await import("https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js");
     fb = {
       auth: mod.auth,
       db: mod.db,
+      firestore: mod.firestore,
       ref: mod.ref,
       get: mod.get,
       set: mod.set,
       update: mod.update,
       push: mod.push,
       runTransaction: mod.runTransaction,
+      getDoc: fsMod.getDoc,
+      vocabularyModuleDocRef: studyMod.vocabularyModuleDocRef,
+      extractVocabularyWords: studyMod.extractVocabularyWords,
+      vocabularyRoomsBasePath: studyMod.vocabularyRoomsBasePath,
 
       // realtime helpers (needed for live rooms)
       onValue: dbMod.onValue,
@@ -420,11 +427,15 @@
   }
 
   async function loadVocabFromFirebase(type, name) {
-    const { db, ref, get } = fb;
-    const snap = await get(ref(db, `vocabularies/${type}/${name}`));
+    const {
+      extractVocabularyWords,
+      getDoc,
+      vocabularyModuleDocRef,
+    } = fb;
+    const snap = await getDoc(vocabularyModuleDocRef(type, name));
     if (!snap.exists()) return [];
 
-    const raw = snap.val() || {};
+    const raw = extractVocabularyWords(snap.data() || {});
     const items = Object.entries(raw)
       .map(([id, v]) => ({
         id: String(id),
@@ -1197,7 +1208,7 @@ async function markCorrectWords() {
   /* -----------------------
      8) GROUP MODE (online rooms) — RULES-COMPLIANT
      Rooms live at:
-       vocabularies/{type}/{name}/pendingRooms/{roomId}
+       vocabularyRooms/{type}/{name}/pendingRooms/{roomId}
 
      ✅ This implementation matches your RTDB rules:
        - Room root is written ONLY by host.
@@ -1222,7 +1233,7 @@ async function markCorrectWords() {
   state._uidToUsernamePromise = null;
 
   function roomsBasePath() {
-    return `vocabularies/${state.type}/${state.name}/pendingRooms`;
+    return fb.vocabularyRoomsBasePath(state.type, state.name);
   }
 
   const shortUid = (uid) => {
