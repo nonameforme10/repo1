@@ -2,6 +2,11 @@
 
 import { syncLeaderboardProfile } from "/pages/elements/leaderboard.sync.js";
 import {
+  claimPhoneOrThrow,
+  getPhoneOwnerUid,
+  releasePhoneIfOwned,
+} from "/elements/firestore-data.js";
+import {
   clearAuthHint,
   writeAuthHint,
   readAuthHint,
@@ -244,32 +249,6 @@ function studentProfileRef(uid) {
 }
 function usernameRef(usernameLower) {
   return ref(rtdb, `students/usernames/${usernameLower}`);
-}
-
-function phoneIndexRef(phoneKeyDigits) {
-  return ref(rtdb, `phones/${phoneKeyDigits}`);
-}
-
-
-async function claimPhoneOrThrow(phoneKeyDigits, uid) {
-  const res = await runTransaction(phoneIndexRef(phoneKeyDigits), (current) => {
-    if (current == null) return uid;     
-    if (current === uid) return current; 
-    return;                               
-  });
-
-  if (!res.committed) throw new Error("phone_taken");
-}
-
-async function releasePhoneIfOwned(phoneKeyDigits, uid) {
-  if (!phoneKeyDigits) return;
-
-  try {
-    const snap = await get(phoneIndexRef(phoneKeyDigits));
-    if (snap.exists() && String(snap.val() || "") === uid) {
-      await update(ref(rtdb), { [`phones/${phoneKeyDigits}`]: null });
-    }
-  } catch {}
 }
 
 
@@ -1205,10 +1184,7 @@ form?.addEventListener("submit", async (e) => {
         const phoneNorm = phoneFromIdentifierNorm || normalizePhone(identifierRaw);
         if (!isValidPhone(phoneNorm)) throw new Error("phone_not_found");
 
-        const phoneSnap = await get(phoneIndexRef(phoneKey(phoneNorm)));
-        if (!phoneSnap.exists()) throw new Error("phone_not_found");
-
-        const uid = String(phoneSnap.val() || "");
+        const uid = await getPhoneOwnerUid(phoneKey(phoneNorm));
         if (!uid) throw new Error("phone_not_found");
 
         const emailSnap = await get(ref(rtdb, `students/${uid}/profile/email`));

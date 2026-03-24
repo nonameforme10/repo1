@@ -1,5 +1,7 @@
 import { auth, rtdb } from "/elements/firebase.js";
+import { onlineModulesCollection } from "/elements/firestore-data.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
+import { getDocs } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
 import { ref, get, update } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
 
 const DEFAULT_NOTIFICATION_PREFERENCES = Object.freeze({
@@ -79,7 +81,7 @@ function progressRef(uid) {
 function modulesRef() {
   const clubId = document.body?.dataset?.club || DEFAULT_CLUB_ID;
   const teacherId = document.body?.dataset?.teacher || DEFAULT_TEACHER_ID;
-  return ref(rtdb, `online/${clubId}/${teacherId}/modules`);
+  return onlineModulesCollection(clubId, teacherId);
 }
 
 function challengesRef() {
@@ -148,8 +150,14 @@ function isoWeekKey(date = new Date()) {
 }
 
 function mapToArray(mapObj) {
+  if (Array.isArray(mapObj)) return mapObj.slice();
   if (!mapObj || typeof mapObj !== "object") return [];
   return Object.keys(mapObj).map((id) => ({ id, ...mapObj[id] }));
+}
+
+async function loadModulesContent() {
+  const snap = await getDocs(modulesRef());
+  return snap.docs.map((entry) => ({ id: entry.id, ...(entry.data() || {}) }));
 }
 
 function pickStatsSnapshot(stats = {}) {
@@ -423,7 +431,7 @@ async function runNotificationChecksNow(options = {}) {
   }
   if (needsContent) {
     requestIndex.modules = requests.length;
-    requests.push(get(modulesRef()));
+    requests.push(loadModulesContent());
     requestIndex.challenges = requests.length;
     requests.push(get(challengesRef()));
   }
@@ -470,7 +478,7 @@ async function runNotificationChecksNow(options = {}) {
 
   if (needsContent) {
     const contentItems = extractContentItems(
-      responses[requestIndex.modules]?.val?.() || {},
+      responses[requestIndex.modules] || [],
       responses[requestIndex.challenges]?.val?.() || {}
     );
     const latestContentAtMs = Math.max(0, Number(contentItems[0]?.createdAtMs || 0));

@@ -1,5 +1,12 @@
 import { auth, rtdb } from "/elements/firebase.js";
 import {
+  ensureGlobalChatRoom,
+  globalChatMessageRef,
+  globalChatMessagesCollection,
+  globalChatTypingCollection,
+  globalChatTypingRef,
+} from "/elements/firestore-data.js";
+import {
   onAuthStateChanged,
   setPersistence,
   browserLocalPersistence,
@@ -7,20 +14,17 @@ import {
 import {
   ref,
   get,
-  push,
-  update,
-  remove,
-  onChildAdded,
-  onChildChanged,
-  onChildRemoved,
-  onValue,
-  query,
-  limitToLast,
-  orderByChild,
-  startAfter,
-  serverTimestamp,
-  set,
 } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
+import {
+  deleteDoc,
+  doc as fsDoc,
+  limitToLast,
+  onSnapshot,
+  orderBy,
+  query,
+  setDoc,
+  updateDoc,
+} from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
 
 
 const $ = (id) => document.getElementById(id);
@@ -82,10 +86,6 @@ function scrollToBottomIfNearEnd(container) {
 }
 
 
-const MESSAGES_PATH = "global_chat/messages";
-const TYPING_PATH = "global_chat/typing";
-
-
 const NET = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
 const IS_SLOW_NET = !!(NET && (NET.saveData || String(NET.effectiveType || "").includes("2g")));
 const MESSAGES_LIMIT = IS_SLOW_NET ? 25 : 50;
@@ -127,6 +127,11 @@ function saveChatCache(items) {
   } catch {
     
   }
+}
+
+function replaceChatCache(items) {
+  chatCacheItems = Array.isArray(items) ? items.slice(-MESSAGES_LIMIT) : [];
+  saveChatCache(chatCacheItems);
 }
 
 function getChatCacheItems() {
@@ -172,17 +177,19 @@ async function loadMyProfile(uid) {
 
 async function setTyping(isTyping) {
   if (!currentUser) return;
-  
-  const typingRef = ref(rtdb, `${TYPING_PATH}/${currentUser.uid}`);
-  
+
+  const typingRef = globalChatTypingRef(currentUser.uid);
+
   if (isTyping) {
-    await set(typingRef, {
+    await ensureGlobalChatRoom();
+    await setDoc(typingRef, {
+      uid: currentUser.uid,
       name: myProfile?.name || currentUser.displayName || "Someone",
       timestamp: Date.now()
-    });
+    }, { merge: true });
     isCurrentlyTyping = true;
   } else {
-    await remove(typingRef);
+    await deleteDoc(typingRef);
     isCurrentlyTyping = false;
   }
 }
@@ -219,10 +226,12 @@ function updateTypingIndicator(typingUsers) {
 
 function listenToTyping() {
   if (detachTyping) return;
-  
-  const typingRef = ref(rtdb, TYPING_PATH);
-  detachTyping = onValue(typingRef, (snapshot) => {
-    const typingUsers = snapshot.val() || {};
+
+  detachTyping = onSnapshot(globalChatTypingCollection(), (snapshot) => {
+    const typingUsers = {};
+    snapshot.forEach((entry) => {
+      typingUsers[entry.id] = entry.data() || {};
+    });
     updateTypingIndicator(typingUsers);
   });
 }
@@ -233,11 +242,7 @@ async function editMessage(msgKey, newText) {
   const text = String(newText || "").trim();
   if (!text) throw new Error("Message cannot be empty.");
 
-  
-  
-  const msgRef = ref(rtdb, `${MESSAGES_PATH}/${msgKey}`);
-  
-  await update(msgRef, {
+  await updateDoc(globalChatMessageRef(msgKey), {
     text: text,
     editedAtMs: Date.now(),
     edited: true
@@ -247,10 +252,7 @@ async function editMessage(msgKey, newText) {
 async function deleteMessage(msgKey) {
   if (!currentUser) throw new Error("Not logged in.");
 
-  
-  
-  const msgRef = ref(rtdb, `${MESSAGES_PATH}/${msgKey}`);
-  await remove(msgRef);
+  await deleteDoc(globalChatMessageRef(msgKey));
 }
 
 
@@ -437,6 +439,24 @@ function normalizeMessage(v) {
   };
 }
 
+function renderChatSnapshot(list, docs) {
+  const frag = document.createDocumentFragment();
+  const itemsForCache = [];
+
+  docs.forEach((entry) => {
+    const msg = normalizeMessage(entry?.data ? entry.data() : entry?.msg || {});
+    const key = String(entry?.id || entry?.key || "");
+    if (!key) return;
+    frag.appendChild(renderMessageNode(msg, key));
+    itemsForCache.push({ key, msg });
+  });
+
+  list.innerHTML = "";
+  list.appendChild(frag);
+  list.scrollTop = list.scrollHeight;
+  replaceChatCache(itemsForCache);
+}
+
 
 async function startListening() {
   if (detachLive) return;
@@ -458,64 +478,50 @@ async function startListening() {
     setStatus(false, "Loading...");
   }
 
-  const baseQ = query(
-    ref(rtdb, MESSAGES_PATH),
-    orderByChild("createdAtMs"),
+  let bootstrapped = false;
+  const liveQ = query(
+    globalChatMessagesCollection(),
+    orderBy("createdAtMs"),
     limitToLast(MESSAGES_LIMIT)
   );
 
-  try {
-    const snap = await get(baseQ);
-    const frag = document.createDocumentFragment();
-    const itemsForCache = [];
-    let lastCreatedAt = null;
-    let lastKey = null;
+  detachLive = onSnapshot(
+    liveQ,
+    (snapshot) => {
+      if (!bootstrapped) {
+        renderChatSnapshot(list, snapshot.docs);
+        setStatus(true, "Live");
+        listenToTyping();
+        bootstrapped = true;
+        return;
+      }
 
-    snap.forEach((child) => {
-      lastKey = child.key;
-      const v = child.val() || {};
-      const msg = normalizeMessage(v);
-      frag.appendChild(renderMessageNode(msg, child.key));
-      itemsForCache.push({ key: child.key, msg });
-      if (typeof msg.createdAtMs === "number") lastCreatedAt = msg.createdAtMs;
-    });
+      snapshot.docChanges().forEach((change) => {
+        const msgKey = change.doc.id;
+        const msg = normalizeMessage(change.doc.data() || {});
 
-    list.innerHTML = "";
-    list.appendChild(frag);
-    list.scrollTop = list.scrollHeight;
-    saveChatCache(itemsForCache);
+        if (change.type === "added") {
+          list.appendChild(renderMessageNode(msg, msgKey));
+          cacheUpsert(msgKey, msg);
+          scrollToBottomIfNearEnd(list);
+          return;
+        }
 
-    setStatus(true, "Live");
+        if (change.type === "modified") {
+          updateMessageNode(msgKey, msg);
+          return;
+        }
 
-    const liveQ = typeof lastCreatedAt === "number"
-        ? query(ref(rtdb, MESSAGES_PATH), orderByChild("createdAtMs"), startAfter(lastCreatedAt))
-        : query(ref(rtdb, MESSAGES_PATH), orderByChild("createdAtMs"));
-
-    detachLive = onChildAdded(liveQ, (child) => {
-      if (child.key && child.key === lastKey) return;
-      const v = child.val() || {};
-      const msg = normalizeMessage(v);
-      list.appendChild(renderMessageNode(msg, child.key));
-      cacheUpsert(child.key, msg);
-      scrollToBottomIfNearEnd(list);
-    });
-
-    detachChanged = onChildChanged(ref(rtdb, MESSAGES_PATH), (child) => {
-      const v = child.val() || {};
-      const msg = normalizeMessage(v);
-      updateMessageNode(child.key, msg);
-    });
-
-    detachRemoved = onChildRemoved(ref(rtdb, MESSAGES_PATH), (child) => {
-      removeMessageNode(child.key);
-    });
-
-    listenToTyping();
-
-  } catch (err) {
-    console.error("Chat sync error:", err);
-    setStatus(false, "Connection Error");
-  }
+        if (change.type === "removed") {
+          removeMessageNode(msgKey);
+        }
+      });
+    },
+    (err) => {
+      console.error("Chat sync error:", err);
+      setStatus(false, "Connection Error");
+    }
+  );
 }
 
 async function sendMessage(raw) {
@@ -536,7 +542,8 @@ async function sendMessage(raw) {
     createdAtMs: Date.now(),
   };
 
-  await push(ref(rtdb, MESSAGES_PATH), payload);
+  await ensureGlobalChatRoom();
+  await setDoc(fsDoc(globalChatMessagesCollection()), payload);
 }
 
 function bindUI() {

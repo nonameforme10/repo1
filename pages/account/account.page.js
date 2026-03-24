@@ -1,5 +1,9 @@
 
 import { auth, rtdb } from "/elements/firebase.js";
+import {
+  claimPhoneOrThrow,
+  releasePhoneIfOwned,
+} from "/elements/firestore-data.js";
 import { syncLeaderboardProfile } from "/pages/elements/leaderboard.sync.js";
 import {
   clearAuthHint,
@@ -321,33 +325,6 @@ function studentProgressRef(uid) {
 
 function studentMarksWordsRef(uid) {
   return ref(rtdb, `students/${uid}/marks/words`);
-}
-
-function phoneIndexRef(phoneKeyDigits) {
-  return ref(rtdb, `phones/${phoneKeyDigits}`);
-}
-
-
-async function claimPhoneOrThrow(phoneKeyDigits, uid) {
-  const res = await runTransaction(phoneIndexRef(phoneKeyDigits), (current) => {
-    if (current == null) return uid;     
-    if (current === uid) return current; 
-    return;                               
-  });
-
-  if (!res.committed) throw new Error("phone_taken");
-}
-
-async function releasePhoneIfOwned(phoneKeyDigits, uid) {
-  if (!phoneKeyDigits) return;
-  try {
-    const snap = await get(phoneIndexRef(phoneKeyDigits));
-    if (snap.exists() && String(snap.val() || "") === uid) {
-      await update(ref(rtdb), { [`phones/${phoneKeyDigits}`]: null });
-    }
-  } catch {
-    
-  }
 }
 
 

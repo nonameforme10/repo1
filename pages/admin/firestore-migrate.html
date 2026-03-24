@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Firestore Migration</title>
+  <style>
+    :root {
+      --bg: #0b1220;
+      --panel: #121a2c;
+      --border: rgba(255, 255, 255, 0.08);
+      --text: #e5ecff;
+      --muted: #95a3c7;
+      --accent: #4f8cff;
+      --accent-2: #2dd4bf;
+      --danger: #ef4444;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(79, 140, 255, 0.18), transparent 32%),
+        radial-gradient(circle at bottom right, rgba(45, 212, 191, 0.16), transparent 28%),
+        var(--bg);
+      color: var(--text);
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+    .shell {
+      width: min(920px, 100%);
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+      overflow: hidden;
+    }
+    .hero {
+      padding: 28px 28px 18px;
+      border-bottom: 1px solid var(--border);
+    }
+    .eyebrow {
+      margin: 0 0 10px;
+      color: var(--accent-2);
+      font-size: 12px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+    h1 {
+      margin: 0 0 10px;
+      font-size: clamp(28px, 4vw, 42px);
+      line-height: 1.05;
+    }
+    .copy {
+      margin: 0;
+      color: var(--muted);
+      max-width: 720px;
+      line-height: 1.6;
+    }
+    .body {
+      padding: 24px 28px 28px;
+      display: grid;
+      gap: 18px;
+    }
+    .grid {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    }
+    .card {
+      padding: 16px;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.03);
+    }
+    .card strong {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 14px;
+    }
+    .card span {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .toolbar {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    button, a.button-link {
+      appearance: none;
+      border: 0;
+      border-radius: 999px;
+      padding: 12px 18px;
+      font-weight: 700;
+      font-size: 14px;
+      cursor: pointer;
+      text-decoration: none;
+      transition: transform 0.18s ease, opacity 0.18s ease, background 0.18s ease;
+    }
+    button:hover, a.button-link:hover { transform: translateY(-1px); }
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .primary {
+      background: linear-gradient(135deg, var(--accent), #76a8ff);
+      color: white;
+    }
+    .secondary {
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .status {
+      padding: 14px 16px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      line-height: 1.5;
+    }
+    .status.error {
+      color: #ffd5d5;
+      border-color: rgba(239, 68, 68, 0.4);
+      background: rgba(239, 68, 68, 0.12);
+    }
+    .status.success {
+      color: #d7fff8;
+      border-color: rgba(45, 212, 191, 0.4);
+      background: rgba(45, 212, 191, 0.12);
+    }
+    .log {
+      min-height: 280px;
+      max-height: 420px;
+      overflow: auto;
+      padding: 16px;
+      border-radius: 18px;
+      border: 1px solid var(--border);
+      background: #09101c;
+      font-family: Consolas, "SFMono-Regular", Menlo, monospace;
+      font-size: 13px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+    }
+    .hint {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.6;
+      margin: 0;
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <p class="eyebrow">Admin Tool</p>
+      <h1>RTDB to Firestore Migration</h1>
+      <p class="copy">
+        This copies the old Realtime Database data for <code>phones</code>, <code>global_chat</code>, and
+        <code>online</code> into Firestore so the new app code can read the same data from Firestore.
+      </p>
+    </section>
+
+    <section class="body">
+      <div class="grid">
+        <article class="card">
+          <strong>Phones</strong>
+          <span>Migrates the phone index so phone-based sign in keeps working.</span>
+        </article>
+        <article class="card">
+          <strong>Global Chat</strong>
+          <span>Copies room metadata, messages, and live typing docs into Firestore.</span>
+        </article>
+        <article class="card">
+          <strong>Online Lessons</strong>
+          <span>Moves lesson modules and lesson comments into Firestore collections.</span>
+        </article>
+        <article class="card">
+          <strong>Admins</strong>
+          <span>Seeds your own Firestore admin doc so Firestore rules can recognize you.</span>
+        </article>
+      </div>
+
+      <div class="toolbar">
+        <button id="runMigrationBtn" class="primary" type="button" disabled>Checking admin access...</button>
+        <a class="button-link secondary" href="/pages/home/home page.html">Back Home</a>
+      </div>
+
+      <div id="statusBox" class="status">Waiting for authentication...</div>
+      <pre id="logBox" class="log">Migration log will appear here.</pre>
+      <p class="hint">
+        Run this once while your Firestore rules still allow writes. After it finishes and you confirm the data in Firestore,
+        you can delete the old RTDB branches if you want.
+      </p>
+    </section>
+  </main>
+
+  <script type="module" src="/pages/admin/firestore-migrate.js"></script>
+</body>
+</html>

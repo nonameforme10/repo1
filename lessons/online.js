@@ -5,14 +5,22 @@
 
 import { auth, db } from "/elements/firebase.js";
 import { checkAdminAccess } from "/elements/admin.js";
+import {
+  ensureOnlineTeacherTree,
+  onlineCommentRef,
+  onlineCommentsCollection,
+  onlineModulesCollection,
+} from "/elements/firestore-data.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
+import {
+  doc as fsDoc,
+  deleteDoc,
+  onSnapshot,
+  setDoc,
+} from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
 import {
   ref,
   get,
-  onValue,
-  push,
-  set,
-  remove
 } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
 
 
@@ -152,8 +160,8 @@ function nowMs() {
 const CLUB_ID = document.body?.dataset?.club || "english";
 const TEACHER_ID = document.body?.dataset?.teacher || "Abdurahim";
 
-const MODULES_PATH = `online/${CLUB_ID}/${TEACHER_ID}/modules`;
-const COMMENTS_PATH = (moduleId) => `online/${CLUB_ID}/${TEACHER_ID}/comments/${moduleId}`;
+const modulesCollectionRef = () => onlineModulesCollection(CLUB_ID, TEACHER_ID);
+const commentsCollectionRef = (moduleId) => onlineCommentsCollection(CLUB_ID, TEACHER_ID, moduleId);
 
 let currentUser = null;
 let isAdmin = false;
@@ -161,6 +169,7 @@ let isAdmin = false;
 let modules = []; // array {id, ...}
 let selectedModuleId = null;
 let unsubscribeComments = null;
+let unsubscribeModules = null;
 
 /* -----------------------------
    DOM refs
@@ -466,8 +475,9 @@ function bindModalEvents() {
     }
 
     try {
-      const modRef = push(ref(db, MODULES_PATH));
-      const moduleId = modRef.key;
+      await ensureOnlineTeacherTree(CLUB_ID, TEACHER_ID);
+      const modRef = fsDoc(modulesCollectionRef());
+      const moduleId = modRef.id;
 
       const payload = {
         title,
@@ -482,7 +492,7 @@ function bindModalEvents() {
       // Clean nulls
       Object.keys(payload).forEach(k => payload[k] === null && delete payload[k]);
 
-      await set(modRef, payload);
+      await setDoc(modRef, payload);
 
       showStatus("Saved ✅");
       clearModal();
@@ -700,7 +710,7 @@ function renderComments(comments) {
         del.addEventListener("click", async () => {
           if (!confirm("Delete comment?")) return;
           try {
-            await remove(ref(db, `${COMMENTS_PATH(selectedModuleId)}/${c.id}`));
+            await deleteDoc(onlineCommentRef(CLUB_ID, TEACHER_ID, selectedModuleId, c.id));
           } catch (e) {
             alert("Delete error: " + (e?.message || e));
           }
@@ -716,15 +726,17 @@ function subscribeToComments(moduleId) {
   // Unsubscribe previous
   if (typeof unsubscribeComments === "function") unsubscribeComments();
 
-  const r = ref(db, COMMENTS_PATH(moduleId));
-  unsubscribeComments = onValue(r, (snap) => {
-    const val = snap.val() || {};
-    const arr = Object.keys(val).map(id => ({ id, ...val[id] }));
-    renderComments(arr);
-  }, (err) => {
-    console.warn("Comments read error:", err);
-    renderComments([]);
-  });
+  unsubscribeComments = onSnapshot(
+    commentsCollectionRef(moduleId),
+    (snap) => {
+      const arr = snap.docs.map((entry) => ({ id: entry.id, ...(entry.data() || {}) }));
+      renderComments(arr);
+    },
+    (err) => {
+      console.warn("Comments read error:", err);
+      renderComments([]);
+    }
+  );
 }
 
 async function loadMyProfile() {
@@ -764,7 +776,7 @@ async function sendComment() {
     const group_name = safeText(profile.group_name || profile.group || profile.class || "").slice(0, 24);
     const email = safeText(currentUser.email || "").slice(0, 80);
 
-    const commentRef = push(ref(db, COMMENTS_PATH(selectedModuleId)));
+    const commentRef = fsDoc(commentsCollectionRef(selectedModuleId));
     const payload = {
       uid: currentUser.uid,
       name,
@@ -775,7 +787,7 @@ async function sendComment() {
       isAdmin: !!isAdmin
     };
 
-    await set(commentRef, payload);
+    await setDoc(commentRef, payload);
     commentTextEl.value = "";
   } catch (e) {
     console.error(e);
@@ -1082,26 +1094,30 @@ function setAuthHint() {
 }
 
 function startRealtimeModules() {
-  const r = ref(db, MODULES_PATH);
-  onValue(r, (snap) => {
-    const val = snap.val() || {};
-    const arr = Object.keys(val).map(id => ({ id, ...val[id] }));
-    // Sort by createdAtMs asc
-    arr.sort((a, b) => (a.createdAtMs || 0) - (b.createdAtMs || 0));
-    modules = arr;
+  if (typeof unsubscribeModules === "function") unsubscribeModules();
 
-    renderCourses();
+  unsubscribeModules = onSnapshot(
+    modulesCollectionRef(),
+    (snap) => {
+      const arr = snap.docs.map((entry) => ({ id: entry.id, ...(entry.data() || {}) }));
+      arr.sort((a, b) => (a.createdAtMs || 0) - (b.createdAtMs || 0));
+      modules = arr;
 
-    // Auto-select first module if none selected
-    if (!selectedModuleId && modules.length) {
-      selectModule(modules[0].id);
+      renderCourses();
+
+      if (!selectedModuleId && modules.length) {
+        selectModule(modules[0].id);
+      } else if (selectedModuleId && modules.some((entry) => entry.id === selectedModuleId)) {
+        selectModule(selectedModuleId);
+      }
+    },
+    (err) => {
+      console.error("Modules read error:", err);
+      if (coursesEl) {
+        coursesEl.innerHTML = `<p style="color: var(--muted);">Load error: ${safeText(err?.message || err)}</p>`;
+      }
     }
-  }, (err) => {
-    console.error("Modules read error:", err);
-    if (coursesEl) {
-      coursesEl.innerHTML = `<p style="color: var(--muted);">Load error: ${safeText(err?.message || err)}</p>`;
-    }
-  });
+  );
 }
 
 function init() {
